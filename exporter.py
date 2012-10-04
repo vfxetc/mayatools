@@ -1,5 +1,7 @@
 from __future__ import absolute_import
 
+import re
+
 from PyQt4 import QtCore, QtGui
 Qt = QtCore.Qt
 
@@ -7,37 +9,6 @@ from maya import cmds
 
 from ks.core.scene_name.widget import SceneNameWidget
 
-
-class CacheSelector(QtGui.QWidget):
-
-    def __init__(self, name):
-        super(CacheSelector, self).__init__()
-        self._name = name
-        self._setup_ui()
-    
-    def _setup_ui(self):
-        
-        self.setLayout(QtGui.QHBoxLayout())
-        self.layout().setContentsMargins(0, 0, 0, 0)
-        
-        self._checkbox = QtGui.QCheckBox()
-        self._checkbox.stateChanged.connect(self._on_checkbox)
-        self.layout().addWidget(self._checkbox)
-        
-        self._label = QtGui.QLabel(self._name)
-        self.layout().addWidget(self._label)
-        
-        self.layout().addStretch()
-        
-        self._edit = QtGui.QLineEdit(self._name)
-        self._edit.setFixedSize(QtCore.QSize(200, self._edit.sizeHint().height()))
-        self.layout().addWidget(self._edit)
-        
-        self._on_checkbox()
-    
-    def _on_checkbox(self, *args):
-        self._edit.setEnabled(self._checkbox.isChecked())
-        
 
 class Dialog(QtGui.QDialog):
 
@@ -49,21 +20,46 @@ class Dialog(QtGui.QDialog):
     def _init_ui(self):
         self.setLayout(QtGui.QVBoxLayout())
         
-        area = self._sets_area = QtGui.QScrollArea()
-        area.setWidgetResizable(True)
-        self.layout().addWidget(area)
-        frame = self._sets_frame = QtGui.QWidget()
-        area.setWidget(frame)
-        frame.setLayout(QtGui.QVBoxLayout())
+        tree = self._sets_tree = QtGui.QTreeWidget()
+        tree.setColumnCount(3)
+        tree.setHeaderLabels(['Geometry', '', 'Export Name'])
+        self.layout().addWidget(tree)
+        tree.viewport().setBackgroundRole(QtGui.QPalette.Window)
         
-        self._selectors = []
-        for set_ in cmds.ls(sets=True) + [str(i) for i in range(10)]:
-            self._selectors.append(CacheSelector(set_))
-        for selector in self._selectors:
-            frame.layout().addWidget(selector)
-        if not self._selectors:
-            frame.layout().addWidget(QtGui.QLabel("Nothing to cache."), alignment=Qt.AlignHCenter)
-        frame.layout().addStretch()
+        references = {}
+        for set_ in cmds.ls(sets=True):
+            if ':' in set_:
+                reference, name = set_.rsplit(':', 1)
+            else:
+                reference = '<scene>'
+                name = set_
+            if 'cache' in name.lower():
+                references.setdefault(reference, []).append(name)
+        
+        for reference, names in sorted(references.iteritems(), key=lambda x: (x[0] != '<scene>', x[0])):
+            
+            item = QtGui.QTreeWidgetItem([reference, '', ''])
+            tree.addTopLevelItem(item)
+            
+            for name in names:
+                child = QtGui.QTreeWidgetItem([name + ' (set)', '', ''])
+                item.addChild(child)
+                checkbox = QtGui.QCheckBox()
+                tree.setItemWidget(child, 1, checkbox)
+                
+                cache_name = reference + '_' + name
+                cache_name = cache_name.replace('cache', '_')
+                cache_name = re.sub(r'[\W_]+', '_', cache_name).strip('_')
+                edit = QtGui.QLineEdit(cache_name)
+                
+                edit.setEnabled(False)
+                tree.setItemWidget(child, 2, edit)
+                checkbox.stateChanged.connect(lambda state, edit=edit: edit.setEnabled(bool(state)))
+            
+            tree.expandItem(item)
+        
+        tree.resizeColumnToContents(0)
+        tree.setColumnWidth(1, 16)
         
         box = self._scene_name_box = QtGui.QGroupBox()
         box.setLayout(QtGui.QVBoxLayout())
