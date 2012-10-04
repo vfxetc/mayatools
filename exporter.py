@@ -1,11 +1,12 @@
 from __future__ import absolute_import
 
+import os
 import re
 
 from PyQt4 import QtCore, QtGui
 Qt = QtCore.Qt
 
-from maya import cmds
+from maya import cmds, mel
 
 from ks.core.scene_name.widget import SceneNameWidget
 
@@ -39,16 +40,21 @@ class SetItem(QtGui.QTreeWidgetItem):
     
     def _setup_ui(self):
         self._enabled_checkbox = QtGui.QCheckBox()
+        self._enabled_checkbox.setCheckState(True)
         self._enabled_checkbox.stateChanged.connect(self._on_enabled_change)
         self._cache_name_field = QtGui.QLineEdit(self._cache_name)
+        self._cache_name_field.textChanged.connect(self._on_name_change)
         self._on_enabled_change()
     
     def _setup_tree(self):
         self.treeWidget().setItemWidget(self, 1, self._enabled_checkbox)
         self.treeWidget().setItemWidget(self, 2, self._cache_name_field)
     
-    def _on_enabled_change(self, state=False):
-        self._cache_name_field.setEnabled(state)
+    def _on_enabled_change(self, state=None):
+        self._cache_name_field.setEnabled(state if state is not None else self._enabled_checkbox.isChecked())
+    
+    def _on_name_change(self, value):
+        self._cache_name = str(value)
         
                 
 
@@ -59,6 +65,13 @@ class Dialog(QtGui.QDialog):
         
         self._init_ui()
     
+    def _warning(self, message):
+        cmds.warning(message)
+
+    def _error(self, message):
+        cmds.confirmDialog(title='Scene Name Error', message=message, icon='critical')
+        cmds.error(message)
+            
     def _init_ui(self):
         self.setMinimumWidth(600)
         self.setLayout(QtGui.QVBoxLayout())
@@ -71,8 +84,8 @@ class Dialog(QtGui.QDialog):
         self.layout().addWidget(tree)
         tree.viewport().setBackgroundRole(QtGui.QPalette.Window)
         
-        groups = {}
-        for set_ in cmds.ls(sets=True):
+        self._groups = {}
+        for set_ in cmds.ls('*cache*', sets=True, recursive=True, long=True):
             
             if ':' in set_:
                 reference, name = set_.rsplit(':', 1)
@@ -80,15 +93,14 @@ class Dialog(QtGui.QDialog):
                 reference = None
                 name = set_
             
-            if 'cache' in name.lower():
-                group = groups.get(reference)
-                if group is None:
-                    group = GroupItem(reference)
-                    groups[reference] = group
-                child = SetItem(name, set_)
-                group._add_child(child)
+            group = self._groups.get(reference)
+            if group is None:
+                group = GroupItem(reference)
+                self._groups[reference] = group
+            child = SetItem(name, set_)
+            group._add_child(child)
         
-        for reference, group in sorted(groups.iteritems(), key=lambda x: (x[0] is not None, x[0])):
+        for reference, group in sorted(self._groups.iteritems(), key=lambda x: (x[0] is not None, x[0])):
             tree.addTopLevelItem(group)
             tree.expandItem(group)
             for child in group._children:
@@ -102,20 +114,24 @@ class Dialog(QtGui.QDialog):
         box.setLayout(QtGui.QVBoxLayout())
         self.layout().addWidget(box)
     
-        self._scene_name = SceneNameWidget(dict(
-            scenes_name='data/geoCache',
-            sub_directory='',
-            workspace=cmds.workspace(q=True, rd=True),
-        ))
+        self._scene_name = SceneNameWidget({
+            'scenes_name': 'data/geo_cache',
+            'sub_directory': '',
+            'extension': '',
+            'workspace': cmds.workspace(q=True, fullName=True) or None,
+            'filename': cmds.file(q=True, sceneName=True) or None,
+            'warning': self._warning,
+            'error': self._error,
+        })
         box.layout().addWidget(self._scene_name)
     
         button_layout = QtGui.QHBoxLayout()
         self.layout().addLayout(button_layout)
     
-        button = self._save_button = QtGui.QPushButton("Save Settings")
-        button.clicked.connect(self._on_save_button)
-        button.setFixedSize(QtCore.QSize(100, button.sizeHint().height()))
-        button_layout.addWidget(button)
+        # button = self._save_button = QtGui.QPushButton("Save Settings")
+        # button.clicked.connect(self._on_save_button)
+        # button.setFixedSize(QtCore.QSize(100, button.sizeHint().height()))
+        # button_layout.addWidget(button)
 
         button_layout.addStretch()
         
@@ -124,20 +140,68 @@ class Dialog(QtGui.QDialog):
         button.setFixedSize(QtCore.QSize(100, button.sizeHint().height()))
         button_layout.addWidget(button)
         
-        button = self._qube_button = QtGui.QPushButton("Queue on Farm")
-        button.clicked.connect(self._on_queue_button)
-        button.setFixedSize(QtCore.QSize(100, button.sizeHint().height()))
-        button_layout.addWidget(button)
+        # button = self._qube_button = QtGui.QPushButton("Queue on Farm")
+        # button.clicked.connect(self._on_queue_button)
+        # button.setFixedSize(QtCore.QSize(100, button.sizeHint().height()))
+        # button_layout.addWidget(button)
         
     def _on_save_button(self):
         cmds.error('Not Implemented')
         
     def _on_process_button(self):
-        cmds.error('Not Implemented')
+        original_selection = cmds.ls(selection=True)
+        
+        frame_from = cmds.playbackOptions(q=True, minTime=True)
+        frame_to = cmds.playbackOptions(q=True, maxTime=True)
+        
+        root = self._scene_name._namer.get_path()
+        
+        for group in self._groups.itervalues():
+            for set_ in group._children:
+                if not set_._enabled_checkbox.isChecked():
+                    continue
+                
+                members = cmds.sets(set_._path, q=True)
+                cmds.select(members, replace=True)
+                
+                name = set_._cache_name
+                path = os.path.join(root, name)
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                export_cache(path, name, frame_from, frame_to)
+        
+        # Restore selection.
+        if original_selection:
+            cmds.select(original_selection, replace=True)
+        else:
+            cmds.select(clear=True)
         
     def _on_queue_button(self):
         cmds.error('Not Implemented')
-        
+
+
+def export_cache(path, name, frame_from, frame_to):
+    # See maya_base/scripts/other/doCreateGeometryCache.mel
+    mel.eval('doCreateGeometryCache 4 { ' + ', '.join('"%s"' % x for x in (
+        0, # 0 -> Use provided start/end frame.
+        frame_from,
+        frame_to,
+        "OneFilePerFrame", # File distribution mode.
+        0, # Refresh during caching?
+        path, # Directory for cache files.
+        0, # Create cache per geometry?
+        name, # Name of cache file.
+        0, # Is that name a prefix?
+        "export", # Action to perform.
+        1, # Force overwrites?
+        1, # Simulation rate.
+        1, # Sample multiplier.
+        0, # Inherit modifications from cache to be replaced?
+        1, # Save as floats.
+    )) + ' }')
+
+
+__also_reload__ = ['ks.core.scene_name.widget']
 def __before_reload__():
     if dialog:
         dialog.close()
