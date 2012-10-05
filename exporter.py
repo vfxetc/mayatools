@@ -103,6 +103,7 @@ class Dialog(QtGui.QDialog):
         cmds.error(message)
             
     def _init_ui(self):
+        self.setWindowTitle('Geocache Export')
         self.setMinimumWidth(600)
         self.setLayout(QtGui.QVBoxLayout())
         
