@@ -109,7 +109,8 @@ class Dialog(QtGui.QDialog):
         pattern_layout = QtGui.QHBoxLayout()
         self.layout().addLayout(pattern_layout)
         pattern_layout.addWidget(QtGui.QLabel("Set Pattern:"))
-        self._pattern_field = field = QtGui.QLineEdit('__cache__')
+        self._pattern_field = field = QtGui.QLineEdit('__cache__*')
+        field.returnPressed.connect(self._reload)
         pattern_layout.addWidget(field)
         self._reload_button = button = QtGui.QPushButton('Reload')
         button.clicked.connect(self._reload)
@@ -143,12 +144,14 @@ class Dialog(QtGui.QDialog):
         self._world_radio.setEnabled(version >= 2013)
         group.addButton(self._world_radio)
         layout.addWidget(self._world_radio)
-        self._local_radio.setChecked(True)
         layout.addStretch()
         if version < 2013:
             label = QtGui.QLabel('(only in 2013+)')
             label.setEnabled(False)
             layout.addWidget(label)
+            self._local_radio.setChecked(True)
+        else:
+            self._world_radio.setChecked(True)
         
         box = self._scene_name_box = QtGui.QGroupBox('Export Name')
         box.setLayout(QtGui.QVBoxLayout())
