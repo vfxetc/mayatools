@@ -124,7 +124,33 @@ class Dialog(QtGui.QDialog):
         
         self._reload()
         
-        box = self._scene_name_box = QtGui.QGroupBox()
+        options_box = QtGui.QGroupBox('Options')
+        self.layout().addWidget(options_box)
+        options_box.setLayout(QtGui.QVBoxLayout())
+        
+        version = int(cmds.about(version=True).split()[0])
+        layout = QtGui.QHBoxLayout()
+        options_box.layout().addLayout(layout)
+        label = QtGui.QLabel("Store Points In:")
+        label.setEnabled(version >= 2013)
+        layout.addWidget(label)
+        group = QtGui.QButtonGroup()
+        self._local_radio = QtGui.QRadioButton('Local Space')
+        self._local_radio.setEnabled(version >= 2013)
+        group.addButton(self._local_radio)
+        layout.addWidget(self._local_radio)
+        self._world_radio = QtGui.QRadioButton('World Space')
+        self._world_radio.setEnabled(version >= 2013)
+        group.addButton(self._world_radio)
+        layout.addWidget(self._world_radio)
+        self._local_radio.setChecked(True)
+        layout.addStretch()
+        if version < 2013:
+            label = QtGui.QLabel('(only in 2013+)')
+            label.setEnabled(False)
+            layout.addWidget(label)
+        
+        box = self._scene_name_box = QtGui.QGroupBox('Export Name')
         box.setLayout(QtGui.QVBoxLayout())
         self.layout().addWidget(box)
     
@@ -202,6 +228,7 @@ class Dialog(QtGui.QDialog):
         
         frame_from = cmds.playbackOptions(q=True, minTime=True)
         frame_to = cmds.playbackOptions(q=True, maxTime=True)
+        world = self._world_radio.isChecked()
         
         root = self._scene_name._namer.get_path()
         
@@ -217,7 +244,7 @@ class Dialog(QtGui.QDialog):
                 path = os.path.join(root, name)
                 if not os.path.exists(path):
                     os.makedirs(path)
-                export_cache(path, name, frame_from, frame_to)
+                export_cache(path, name, frame_from, frame_to, world)
         
         # Restore selection.
         if original_selection:
@@ -229,9 +256,13 @@ class Dialog(QtGui.QDialog):
         cmds.error('Not Implemented')
 
 
-def export_cache(path, name, frame_from, frame_to):
+def export_cache(path, name, frame_from, frame_to, world):
+    
     # See maya_base/scripts/other/doCreateGeometryCache.mel
-    mel.eval('doCreateGeometryCache 4 { ' + ', '.join('"%s"' % x for x in (
+    maya_version = int(cmds.about(version=True).split()[0])
+    version = 6 if maya_version >= 2013 else 4
+    
+    args = [
         0, # 0 -> Use provided start/end frame.
         frame_from,
         frame_to,
@@ -247,7 +278,18 @@ def export_cache(path, name, frame_from, frame_to):
         1, # Sample multiplier.
         0, # Inherit modifications from cache to be replaced?
         1, # Save as floats.
-    )) + ' }')
+    ]
+    
+    if version >= 6:
+        args.extend((
+            "mcc", # Cache format.
+            int(world), # Save in world space?
+        ))
+    
+    mel.eval('doCreateGeometryCache %s { %s }' % (
+        version,
+        ', '.join('"%s"' % x for x in args),
+    ))
 
 
 __also_reload__ = ['ks.core.scene_name.widget']
