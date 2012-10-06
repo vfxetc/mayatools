@@ -48,6 +48,7 @@ class Link(QtGui.QGroupBox):
         self._cache_layout.addWidget(self._name_combo)
         
         self._cache_field = QtGui.QLineEdit()
+        self._cache_field.editingFinished.connect(self._populate_reference_combo)
         self._cache_browse_button = QtGui.QPushButton("Browse")
         self._cache_browse_button.setMaximumSize(QtCore.QSize(50, 20))
         self._cache_browse_button.clicked.connect(self._on_cache_browse)
@@ -59,8 +60,7 @@ class Link(QtGui.QGroupBox):
         
         # Cache widgets
         self._reference_combo = QtGui.QComboBox()
-        # self._reference_combo.addItem("Reindeer")
-        self._reference_combo.addItem("Custom")
+        self._populate_reference_combo()
         self._reference_combo.currentIndexChanged.connect(self._on_reference_changed)
         self._reference_layout.addWidget(self._reference_combo)
         self._selection_field = QtGui.QLineEdit()
@@ -129,7 +129,6 @@ class Link(QtGui.QGroupBox):
             self._on_step_changed()
     
     def _on_step_changed(self, index=None):
-        shot = str(self._step_combo.currentText())
         self._populate_cache_combo()
         
     def _populate_cache_combo(self):
@@ -144,23 +143,89 @@ class Link(QtGui.QGroupBox):
                 self._cache_combo.addItem(name)
     
     def _on_cache_changed(self, index=None):
-        pass
+        
+        if self._cache_combo.itemText(0) == 'Select...':
+            if index:
+                self._cache_combo.removeItem(0)
+            else:
+                return
+        self._populate_name_combo()
+        
     
     def _populate_name_combo(self):
-        pass
+        
+        cache = str(self._cache_combo.currentText())
+        self._name_combo.clear()
+        
+        if not cache:
+            return
+        
+        # TODO: Do this with SGFS.
+        path = cmds.workspace(q=True, directory=True)
+        path = path[:path.find(self._current_shot)] + str(self._shot_combo.currentText())
+        path = os.path.join(path, str(self._step_combo.currentText()), 'maya', 'data', 'geo_cache', cache)
+        if os.path.exists(path):
+            for name in os.listdir(path):
+                self._name_combo.addItem(name)
     
     def _on_name_changed(self, index=None):
-        pass
+        last_ref = str(self._reference_combo.currentText())
+        self._populate_reference_combo(last_ref)
     
-    def _populate_reference_combo(self):
-        pass
+    def getCachePath(self):
+        workspace = cmds.workspace(q=True, directory=True)
+        shot = str(self._shot_combo.currentText())
+        if shot == 'Custom':
+            return os.path.join(workspace, str(self._cache_field.text()))
+        else:
+            step = str(self._step_combo.currentText())
+            cache = str(self._cache_combo.currentText())
+            name = str(self._name_combo.currentText())
+            if not (shot and step and cache and name):
+                return
+            path = workspace[:workspace.find(self._current_shot)] + shot
+            path = os.path.join(path, step, 'maya', 'data', 'geo_cache', cache, name, name + '.xml')
+            if not os.path.exists(path):
+                cmds.warning('Could not find cache: %r' % path)
+                return
+            return path
+    
+    def _populate_reference_combo(self, select="Custom"):
+        self._reference_combo.clear()
+        
+        cache_path = self.getCachePath()
+        #print 'cache_path', cache_path
+        
+        if cache_path:
+            channels = cmds.cacheFile(
+                query=True,
+                fileName=cache_path,
+                channelName=True,
+            )
+            channels = [x.split(':')[-1] for x in channels]
+            #print 'channels', channels
+            references = cmds.file(q=True, reference=True)
+            #print 'references', references
+            for reference in references:
+                raw_nodes = cmds.referenceQuery(reference, nodes=True)
+                nodes = set(x.split(':')[-1] for x in raw_nodes)
+                if all(x in nodes for x in channels):
+                    namespace = raw_nodes[0].rsplit(':', 1)[0]
+                    self._reference_combo.addItem(namespace, cache_path)
+        
+        self._reference_combo.addItem("Custom")
     
     def _on_reference_changed(self, index=None):
-        reference = str(self._reference_combo.currentText())
+        namespace = str(self._reference_combo.currentText())
+        path = str(self._reference_combo.itemData(index).toString()) if index is not None else None
+        print 'reference', namespace, path
         
-        is_custom = reference == 'Custom'
+        is_custom = namespace == 'Custom'
         self._selection_field.setVisible(is_custom)
         self._set_selection_button.setVisible(is_custom)
+        
+        if not is_custom:
+            # Link the reference here.
         
     def _on_cache_browse(self):
         file_name = str(QtGui.QFileDialog.getOpenFileName(self, "Select Geocache", os.getcwd(), "Geocaches (*.xml)"))
@@ -173,6 +238,8 @@ class Link(QtGui.QGroupBox):
             self._cache_field.setText(file_name)
         else:
             self._cache_field.setText(relative)
+        
+        self._populate_reference_combo()
     
     def _on_set_clicked(self):
         self._selection_field.setText(', '.join(cmds.ls(selection=True)))
