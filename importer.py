@@ -226,7 +226,8 @@ class Link(QtGui.QGroupBox):
         
         if not is_custom:
             # Link the reference here.
-        
+            pass
+            
     def _on_cache_browse(self):
         file_name = str(QtGui.QFileDialog.getOpenFileName(self, "Select Geocache", os.getcwd(), "Geocaches (*.xml)"))
         if not file_name:
