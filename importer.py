@@ -41,7 +41,7 @@ class Link(QtGui.QGroupBox):
         self._reference_layout = QtGui.QHBoxLayout()
         self._main_layout.addLayout(self._reference_layout)
         
-        # Cache widgets
+        ## Cache widgets
         
         self._shot_combo = QtGui.QComboBox()
         self._populate_shot_combo()        
@@ -75,16 +75,15 @@ class Link(QtGui.QGroupBox):
         self._cache_browse_button_pair = Labeled("", self._cache_browse_button)
         self._cache_layout.addLayout(self._cache_browse_button_pair)
         
-        
         self._on_shot_changed()
         
-        # Cache widgets
+        ## Reference widgets
+        
         self._reference_combo = QtGui.QComboBox()
         self._populate_reference_combo()
         self._reference_combo.currentIndexChanged.connect(self._on_reference_changed)
         self._reference_combo_pair = Labeled("Reference", self._reference_combo)
         self._reference_layout.addLayout(self._reference_combo_pair)
-        
         
         self._selection_field = QtGui.QLineEdit()
         self._selection_field_pair = Labeled("Geometry", self._selection_field)
@@ -98,14 +97,13 @@ class Link(QtGui.QGroupBox):
         self._set_selection_button_pair = Labeled("", self._set_selection_button)
         self._reference_layout.addLayout(self._set_selection_button_pair)
         
-        self._on_reference_changed()
-        
-        # Delete button.
         self._clear_button = QtGui.QPushButton('Clear')
         self._clear_button.setMaximumSize(QtCore.QSize(50, 20))
         self._clear_button.clicked.connect(self._on_clear_clicked)
         self._clear_button_pair = Labeled("", self._clear_button)
         self._reference_layout.addLayout(self._clear_button_pair)
+        
+        self._on_reference_changed()
     
     def _populate_shot_combo(self):
         
@@ -154,7 +152,9 @@ class Link(QtGui.QGroupBox):
         self._cache_pair.setVisible(not is_custom)
         self._object_pair.setVisible(not is_custom)
         
-        if not is_custom:
+        if is_custom:
+            self._populate_reference_combo()
+        else:
             self._populate_step_combo()
             self._on_step_changed()
     
@@ -205,8 +205,10 @@ class Link(QtGui.QGroupBox):
     def getCachePath(self):
         workspace = cmds.workspace(q=True, directory=True)
         shot = str(self._shot_combo.currentText())
+        
         if shot == 'Custom':
-            return os.path.join(workspace, str(self._cache_field.text()))
+            path = os.path.join(workspace, str(self._cache_field.text()))
+        
         else:
             step = str(self._step_combo.currentText())
             cache = str(self._cache_combo.currentText())
@@ -215,54 +217,66 @@ class Link(QtGui.QGroupBox):
                 return
             path = workspace[:workspace.find(self._current_shot)] + shot
             path = os.path.join(path, step, 'maya', 'data', 'geo_cache', cache, name, name + '.xml')
-            if not os.path.exists(path):
-                cmds.warning('Could not find cache: %r' % path)
-                return
-            return path
+        
+        if not os.path.exists(path):
+            cmds.warning('Could not find cache: %r' % path)
+            return
+        
+        return path
     
     def _populate_reference_combo(self, select="Custom"):
         self._reference_combo.clear()
         
         cache_path = self.getCachePath()
-        #print 'cache_path', cache_path
+        channels = cmds.cacheFile(
+            query=True,
+            fileName=cache_path,
+            channelName=True,
+        ) if cache_path else None
         
-        if cache_path:
-            channels = cmds.cacheFile(
-                query=True,
-                fileName=cache_path,
-                channelName=True,
-            )
+        print cache_path
+        print channels
+        
+        if channels is not None:
             channels = [x.split(':')[-1] for x in channels]
-            #print 'channels', channels
             references = cmds.file(q=True, reference=True)
-            #print 'references', references
             for reference in references:
                 raw_nodes = cmds.referenceQuery(reference, nodes=True)
                 nodes = set(x.split(':')[-1] for x in raw_nodes)
                 if all(x in nodes for x in channels):
                     namespace = raw_nodes[0].rsplit(':', 1)[0]
-                    self._reference_combo.addItem(namespace, cache_path)
+                    self._reference_combo.addItem(namespace, reference)
         
         self._reference_combo.addItem("Custom")
     
     def _on_reference_changed(self, index=None):
         namespace = str(self._reference_combo.currentText())
-        path = str(self._reference_combo.itemData(index).toString()) if index is not None else None
-        print 'reference', namespace, path
+        reference = str(self._reference_combo.itemData(index).toString()) if index is not None else None
+        print 'reference', namespace, reference
         
         is_custom = namespace == 'Custom'
         self._selection_field_pair.setVisible(is_custom)
         self._set_selection_button_pair.setVisible(is_custom)
         
-        self._selection_field.updateGeometry()
-        self._set_selection_button.updateGeometry()
-        self.updateGeometry()
-        #self.adjustSize()
-        #self.layout().update()
-        #self.repaint()
+        # self._selection_field.updateGeometry()
+        # self._set_selection_button.updateGeometry()
+        # self.updateGeometry()
+        # #self.adjustSize()
+        # #self.layout().update()
+        # #self.repaint()
+    
+    def getSelection(self):
+        namespace = str(self._reference_combo.currentText())
+        index = self._reference_combo.currentIndex()
+        reference = str(self._reference_combo.itemData(index).toString()) if index is not None else None
+        is_custom = namespace == 'Custom'
+        if is_custom:
+            selection = [x.strip() for x in str(self._selection_field.text()).split(',')]
+            selection = [x for x in selection if x]
+            return selection
+        else:
+            return cmds.referenceQuery(reference, nodes=True)
         
-        
-            
     def _on_cache_browse(self):
         file_name = str(QtGui.QFileDialog.getOpenFileName(self, "Select Geocache", os.getcwd(), "Geocaches (*.xml)"))
         if not file_name:
@@ -284,13 +298,13 @@ class Link(QtGui.QGroupBox):
         # Set to "Custom", and clear the selection.
         self._reference_combo.setCurrentIndex(self._reference_combo.count() - 1)
         self._selection_field.setText('')
-        
+    
 
 class Dialog(QtGui.QMainWindow):
 
     def __init__(self):
         super(Dialog, self).__init__()
-        
+        self._links = []
         self._init_ui()
     
     def _init_ui(self):
@@ -319,11 +333,11 @@ class Dialog(QtGui.QMainWindow):
         self._apply_button = button = QtGui.QPushButton("Apply")
         button.setMinimumSize(button.sizeHint().expandedTo(QtCore.QSize(100, 0)))
         button_layout.addWidget(button)
-        #button.clicked.connect(self._on_add_link)
+        button.clicked.connect(self._on_apply_clicked)
         self._save_button = button = QtGui.QPushButton("Save")
         button.setMinimumSize(button.sizeHint().expandedTo(QtCore.QSize(100, 0)))
         button_layout.addWidget(button)
-        #button.clicked.connect(self._on_add_link)
+        button.clicked.connect(self._on_save_clicked)
         
         layout.addStretch()
         
@@ -331,8 +345,39 @@ class Dialog(QtGui.QMainWindow):
     
     def _on_add_link(self):
         link = Link(self._scroll_layout.count() - 1)
+        self._links.append(link)
         self._scroll_layout.insertWidget(self._scroll_layout.count() - 2, link)
+    
+    def _on_save_clicked(self):
+        self._on_apply_clicked()
+        self.close()
+    
+    def _on_apply_clicked(self):
+        original_selection = cmds.ls(sl=True)
+        for link in self._links:
+            cache = link.getCachePath()
+            selection = link.getSelection()
+            print link
+            print cache
+            if cache and selection:
+                channels = set(x.split(':')[-1] for x in cmds.cacheFile(
+                    query=True,
+                    fileName=cache,
+                    channelName=True,
+                ) or [])
+                print selection
+                # selection = [x for x in selection if x.split(':')[-1] in channels]
 
+                print channels
+                print selection
+                
+                cmds.select(selection, replace=True) 
+                mel.eval("source doImportCacheFile.mel")
+                mel.eval('doImportCacheFile("%s", "Best Guess", {}, {})' % (
+                    cache,
+                    # ', '.join('"%s"' % x for x in selection),
+                ))
+            
 __also_reload__ = ['ks.core.scene_name.core']
 def __before_reload__():
     if dialog:
