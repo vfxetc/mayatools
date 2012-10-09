@@ -349,6 +349,7 @@ class Link(QtGui.QGroupBox):
                     return
         
         self._entity_combo.setCurrentIndex(self._entity_combo.count() - 1)
+        self._on_entity_changed()
         workspace = cmds.workspace(q=True, directory=True)
         relative = os.path.relpath(path, workspace)
         if relative.startswith('.'):
@@ -555,7 +556,12 @@ class Dialog(QtGui.QMainWindow):
                 continue
             
             # Delete existing caches.
-            history = cmds.listHistory(selection, levels=2)
+            history = set()
+            for node in selection:
+                try:
+                    history.update(cmds.listHistory(node, levels=2))
+                except TypeError:
+                    pass
             caches = []
             for node in history:
                 if cmds.nodeType(node) == 'cacheFile':
@@ -586,18 +592,22 @@ class Dialog(QtGui.QMainWindow):
             # selected instead of the shape. The shape node is whats exported
             # in the original cache.
             cmds.select(clear=True)
+            clean_selection = []
             for name in selection:
                 type_ = cmds.nodeType(name)
                 if type_ == 'mesh':
-                    cmds.select(cmds.listRelatives(name, parent=True)[0], add=True)
+                    clean_selection.append(cmds.listRelatives(name, parent=True)[0])
                 elif type_ == 'transform':
-                    cmds.select(name, add=True)
+                    clean_selection.append(name)
+            cmds.select(clean_selection, replace=True)
             
             channels = set(x.split(':')[-1] for x in cmds.cacheFile(
                 query=True,
                 fileName=cache,
                 channelName=True,
             ) or [])
+            
+            clean_selection = [x for x in clean_selection if comparison_name(x) in channels]
             
             mel.eval('doImportCacheFile("%s", "Best Guess", {}, {})' % (
                 cache,
