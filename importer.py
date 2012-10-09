@@ -25,10 +25,20 @@ def comparison_name(name):
 
 class ComboBox(QtGui.QComboBox):
     
+    def itemData(self, index):
+        data = super(ComboBox, self).itemData(index).toPyObject()
+        return self._conform_item_data(data)
+    
+    def _conform_item_data(self, data):
+        if isinstance(data, QtCore.QString):
+            return str(data)
+        if isinstance(data, dict):
+            return dict((self._conform_item_data(k), self._conform_item_data(v)) for k, v in data.iteritems())
+        return data
+    
     def currentData(self):
         index = self.currentIndex()
-        data = self.itemData(index).toPyObject()
-        return data
+        return self.itemData(index)
     
     def indexWithText(self, text):
         for i in xrange(self.count()):
@@ -37,6 +47,18 @@ class ComboBox(QtGui.QComboBox):
     
     def selectWithText(self, text):
         index = self.indexWithText(text)
+        if index is not None:
+            self.setCurrentIndex(index)
+            return True
+    
+    def indexWithData(self, key, value):
+        for i in xrange(self.count()):
+            data = self.itemData(i)
+            if data and data.get(key) == value:
+                return i
+    
+    def selectWithData(self, key, value):
+        index = self.indexWithData(key, value)
         if index is not None:
             self.setCurrentIndex(index)
             return True
@@ -172,7 +194,11 @@ class Link(QtGui.QGroupBox):
             cmds.warning('Cannot extract entities from %r' % entity)
         
         for name, path, entity in entities:
-            self._entity_combo.addItem(name, (path, entity))
+            self._entity_combo.addItem(name, dict(
+                name=name,
+                path=path,
+                entity=entity
+            ))
         self._entity_combo.addItem('Custom')
         
         
@@ -183,9 +209,9 @@ class Link(QtGui.QGroupBox):
         data = self._entity_combo.currentData()
         if not data:
             return
-        shot_path, shot = data
+        entity_paty, entity = data['path'], data['entity']
         
-        for task_path, task in sgfs.entities_in_directory(shot_path, 'Task', load_tags=None):
+        for task_path, task in sgfs.entities_in_directory(entity_paty, 'Task', load_tags=None):
             self._step_combo.addItem(task['step']['code'], (task_path, task))
             if task['step']['code'].lower().startswith('anim'):
                 self._step_combo.setCurrentIndex(self._step_combo.count() - 1)
@@ -225,7 +251,7 @@ class Link(QtGui.QGroupBox):
             path = os.path.join(task_path, 'maya', 'data', geo_cache_name)
             if os.path.exists(path):
                 for name in os.listdir(path):
-                    self._cache_combo.addItem(name, (os.path.join(path, name), name))
+                    self._cache_combo.addItem(name, dict(path=os.path.join(path, name), name=name))
     
     def _on_cache_changed(self, index=None):
         if self._cache_combo.itemText(0) == 'Select...':
@@ -241,11 +267,11 @@ class Link(QtGui.QGroupBox):
         data = self._cache_combo.currentData()
         if not data:
             return
-        path, name = data
+        path, name = data['path'], data['name']
         
         if os.path.exists(path):
             for name in os.listdir(path):
-                self._object_combo.addItem(name, (os.path.join(path, name), name))
+                self._object_combo.addItem(name, dict(path=os.path.join(path, name), name=name))
     
     def _on_object_changed(self, index=None):
         self._populate_reference_combo()
@@ -253,16 +279,19 @@ class Link(QtGui.QGroupBox):
     def cachePath(self):
         workspace = cmds.workspace(q=True, directory=True)
         
-        shot_data = self._entity_combo.currentData()
+        entity_data = self._entity_combo.currentData()
                 
-        if not shot_data:
-            path = os.path.join(workspace, str(self._cache_field.text()))
+        if not entity_data:
+            relative = str(self._cache_field.text())
+            if not relative:
+                return
+            path = os.path.join(workspace, relative)
         
         else:
             data = self._object_combo.currentData()
             if not data:
                 return None
-            path, name = data
+            path, name = data['path'], data['name']
             path = os.path.join(path, name + '.xml')
         
         if not os.path.exists(path):
@@ -306,8 +335,8 @@ class Link(QtGui.QGroupBox):
     
     def _populate_reference_combo(self):
         
-        previous = str(self._reference_combo.currentText())
-        previous = previous.rstrip('*').strip()
+        previous = self._reference_combo.currentData() or {}
+        reselect_previous = previous.get('full') or previous.get('partial')
         
         self._reference_combo.clear()
         
@@ -316,31 +345,47 @@ class Link(QtGui.QGroupBox):
             query=True,
             fileName=cache_path,
             channelName=True,
-        ) if cache_path else None
+        ) or [] if cache_path else []
+        channels = [x.split(':')[-1] for x in channels]
         
+        selected = False
         
-        ref_items = []
-        if channels is not None:
-            channels = [x.split(':')[-1] for x in channels]
-            references = cmds.file(q=True, reference=True)
-            for reference in references:
-                raw_nodes = cmds.referenceQuery(reference, nodes=True)
-                nodes = set(comparison_name(x) for x in raw_nodes)
-                namespace = raw_nodes[0].rsplit(':', 1)[0]
-                is_candidate = any(comparison_name(x) in nodes for x in channels)
-                ref_items.append((is_candidate, namespace, reference))
+        references = {}
+        for reference in cmds.file(q=True, reference=True) or []:
+                
+            raw_nodes = cmds.referenceQuery(reference, nodes=True)
+            nodes = set(comparison_name(x) for x in raw_nodes)
+            namespace = raw_nodes[0].rsplit(':', 1)[0]
+                
+            full = all(comparison_name(x) in nodes for x in channels)
+            partial = full or any(comparison_name(x) in nodes for x in channels)
+            
+            references[namespace] = dict(
+                namespace=namespace,
+                reference=reference,
+                full=full,
+                partial=partial,
+            )
         
-        for i, (is_candidate, namespace, reference) in enumerate(ref_items):
-            self._reference_combo.addItem(namespace + (' **' if is_candidate else ''), reference)
-            if namespace == previous:
-                self._reference_combo.setCurrentIndex(i)
+        selected = False
+        for namespace, data in sorted(references.iteritems()):
+            label = ' [full]' if data['full'] else ' [partial]' if data['partial'] else ''
+            self._reference_combo.addItem(namespace + label, data)
+            
+            if reselect_previous:
+                if previous['reference'] == data['reference']:
+                    self._reference_combo.setCurrentIndex(self._reference_combo.count() - 1)
+            elif not selected:
+                if data['partial'] or data['full']:
+                    selected = True
+                    self._reference_combo.setCurrentIndex(self._reference_combo.count() - 1)
         
         self._reference_combo.insertSeparator(1000)
         self._reference_combo.addItem("Custom")
     
     def _on_reference_changed(self, index=None):
         namespace = str(self._reference_combo.currentText())
-        reference = str(self._reference_combo.itemData(index).toString()) if index is not None else None
+        reference = str(self._reference_combo.itemData(index)) if index is not None else None
         
         is_custom = namespace == 'Custom'
         self._selection_field_pair.setVisible(is_custom)
@@ -354,16 +399,13 @@ class Link(QtGui.QGroupBox):
         # #self.repaint()
     
     def getSelection(self):
-        namespace = str(self._reference_combo.currentText())
-        index = self._reference_combo.currentIndex()
-        reference = str(self._reference_combo.itemData(index).toString()) if index is not None else None
-        is_custom = namespace == 'Custom'
-        if is_custom:
+        data = self._reference_combo.currentData()
+        if not data:
             selection = [x.strip() for x in str(self._selection_field.text()).split(',')]
             selection = [x for x in selection if x]
             return selection
         else:
-            return cmds.referenceQuery(reference, nodes=True)
+            return cmds.referenceQuery(data['reference'], nodes=True)
     
     def setSelection(self, selection):
 
@@ -372,14 +414,10 @@ class Link(QtGui.QGroupBox):
             raw_nodes = cmds.referenceQuery(reference, nodes=True)
             nodes = set(x for x in raw_nodes if cmds.nodeType(x) in ('mesh', 'transform'))
             if all(x in nodes for x in selection):
-                # found it!
                 namespace = raw_nodes[0].rsplit(':', 1)[0]
-                index = self._reference_combo.indexWithText(namespace + ' **')
-                index = self._reference_combo.indexWithText(namespace) if index is None else index
-                if index is not None:
-                    self._reference_combo.setCurrentIndex(index)
+                if self._reference_combo.selectWithData('namespace', namespace):
                     return
-                    
+                
         self._reference_combo.setCurrentIndex(self._reference_combo.count() - 1)
         self._selection_field.setText(', '.join(selection))
     
@@ -492,7 +530,6 @@ class Dialog(QtGui.QMainWindow):
             if not selection:
                 continue
             
-            
             # Delete existing caches.
             history = cmds.listHistory(selection, levels=2)
             caches = []
@@ -505,11 +542,16 @@ class Dialog(QtGui.QMainWindow):
                     print '# Cache already up to date: %r' % cache
                     continue
                 else:
-                    print '# Removing old cache: %r' % cache
+                    print '# Removing old caches:'
+                    for old in caches:
+                        print '#\t-', cmds.cacheFile(old, q=True, fileName=True)[0]
                     mel.eval('deleteCacheFile(3, {"keep", "%s", "geometry"})' % (
                         ','.join(caches),
                     ))
-                
+            
+            if cache is None:
+                continue
+            print '# Connecting:', cache
             
             # When a cache is created Maya creates a new shape node with
             # "Deformed" appended to it. When the cache is deleted, Maya does
@@ -522,14 +564,10 @@ class Dialog(QtGui.QMainWindow):
             cmds.select(clear=True)
             for name in selection:
                 type_ = cmds.nodeType(name)
-                print type_, name
                 if type_ == 'mesh':
                     cmds.select(cmds.listRelatives(name, parent=True)[0], add=True)
                 elif type_ == 'transform':
                     cmds.select(name, add=True)
-            
-            print 'SELECTED:'
-            print '\n'.join(sorted(cmds.ls(sl=True)))
             
             channels = set(x.split(':')[-1] for x in cmds.cacheFile(
                 query=True,
@@ -537,7 +575,6 @@ class Dialog(QtGui.QMainWindow):
                 channelName=True,
             ) or [])
             
-            # mel.eval("source doImportCacheFile.mel")
             mel.eval('doImportCacheFile("%s", "Best Guess", {}, {})' % (
                 cache,
                 # ', '.join('"%s"' % x for x in selection),
