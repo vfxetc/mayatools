@@ -29,6 +29,11 @@ class ComboBox(QtGui.QComboBox):
         index = self.currentIndex()
         data = self.itemData(index).toPyObject()
         return data
+    
+    def indexWithText(self, text):
+        for i in xrange(self.count()):
+            if self.itemText(i) == text:
+                return i
 
 
 class Labeled(QtGui.QVBoxLayout):
@@ -244,6 +249,30 @@ class Link(QtGui.QGroupBox):
         return path
     
     def setCachePath(self, path):
+        
+        # If we can seperate all the data out, then do so.
+        entities = sgfs.entities_from_path(path)
+        if entities and entities[0]['type'] == 'Task':
+            task = entities[0]
+            shot = task.parent()
+            if shot['type'] == 'Shot':
+                task_path = sgfs.path_for_entity(task)
+                relative = os.path.relpath(path, task_path)
+                m = re.match(r'maya/data/(geocache|geo_cache|geoCache)/(\w+)/(\w+)/\3.xml', relative)
+                if m:
+                    _, cache_name, object_name = m.groups()
+                    shot_i = self._shot_combo.indexWithText(shot['code'])
+                    if shot_i is None:
+                        self._shot_combo.insertItem(0, shot['code'], (sgfs.path_for_entity(shot), shot))
+                        shot_i = 0
+                    # Assume that the combos automatically trigger the next
+                    # the automatically populate.
+                    self._shot_combo.setCurrentIndex(shot_i)
+                    self._step_combo.setCurrentIndex(self._step_combo.indexWithText(task['step']['code']))
+                    self._cache_combo.setCurrentIndex(self._cache_combo.indexWithText(cache_name))
+                    self._object_combo.setCurrentIndex(self._object_combo.indexWithText(object_name))
+                    return
+        
         self._shot_combo.setCurrentIndex(self._shot_combo.count() - 1)
         workspace = cmds.workspace(q=True, directory=True)
         relative = os.path.relpath(path, workspace)
@@ -303,6 +332,19 @@ class Link(QtGui.QGroupBox):
             return cmds.referenceQuery(reference, nodes=True)
     
     def setSelection(self, selection):
+
+        references = cmds.file(q=True, reference=True)
+        for reference in references:
+            raw_nodes = cmds.referenceQuery(reference, nodes=True)
+            nodes = set(x for x in raw_nodes if cmds.nodeType(x) in ('mesh', 'transform'))
+            if all(x in nodes for x in selection):
+                # found it!
+                namespace = raw_nodes[0].rsplit(':', 1)[0]
+                index = self._reference_combo.indexWithText(namespace)
+                if index is not None:
+                    self._reference_combo.setCurrentIndex(index)
+                    return
+                    
         self._reference_combo.setCurrentIndex(self._reference_combo.count() - 1)
         self._selection_field.setText(', '.join(selection))
     
@@ -393,8 +435,9 @@ class Dialog(QtGui.QMainWindow):
             
             self._links.append(link)
             self._scroll_layout.insertWidget(self._scroll_layout.count() - 2, link)
-            
-        self._on_add_link()
+        
+        if not self._links:
+            self._on_add_link()
     
     def _on_add_link(self):
         link = Link(self._scroll_layout.count() - 1)
