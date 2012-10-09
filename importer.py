@@ -11,10 +11,23 @@ from maya import cmds, mel
 from ks.core.scene_name.core import SceneName
 
 
+class Labeled(QtGui.QVBoxLayout):
+
+    def __init__(self, label, widget):
+        super(Labeled, self).__init__()
+        self._label = QtGui.QLabel(label)
+        self.addWidget(self._label)
+        self._widget = widget
+        self.addWidget(widget)
+    
+    def setVisible(self, visible):
+        self._label.setVisible(visible)
+        self._widget.setVisible(visible)
+
 class Link(QtGui.QGroupBox):
     
     def __init__(self, index):
-        super(Link, self).__init__("Link %d" % index)
+        super(Link, self).__init__() #"Link %d" % index)
         self._setup_ui()
     
     def _setup_ui(self):
@@ -33,27 +46,34 @@ class Link(QtGui.QGroupBox):
         self._shot_combo = QtGui.QComboBox()
         self._populate_shot_combo()        
         self._shot_combo.currentIndexChanged.connect(self._on_shot_changed)
-        self._cache_layout.addWidget(self._shot_combo)
-
+        self._shot_pair = Labeled("Shot", self._shot_combo)
+        self._cache_layout.addLayout(self._shot_pair)
+            
         self._step_combo = QtGui.QComboBox()
         self._step_combo.currentIndexChanged.connect(self._on_step_changed)
-        self._cache_layout.addWidget(self._step_combo)
+        self._step_pair = Labeled("Step", self._step_combo)
+        self._cache_layout.addLayout(self._step_pair)
         
         self._cache_combo = QtGui.QComboBox()
         self._cache_combo.currentIndexChanged.connect(self._on_cache_changed)
-        self._cache_layout.addWidget(self._cache_combo)
+        self._cache_pair = Labeled("Geocache", self._cache_combo)
+        self._cache_layout.addLayout(self._cache_pair)
         
-        self._name_combo = QtGui.QComboBox()
-        self._name_combo.currentIndexChanged.connect(self._on_name_changed)
-        self._cache_layout.addWidget(self._name_combo)
+        self._object_combo = QtGui.QComboBox()
+        self._object_combo.currentIndexChanged.connect(self._on_object_changed)
+        self._object_pair = Labeled("Object", self._object_combo)
+        self._cache_layout.addLayout(self._object_pair)
         
         self._cache_field = QtGui.QLineEdit()
         self._cache_field.editingFinished.connect(self._populate_reference_combo)
+        self._cache_field_pair = Labeled("Path to Custom Geocache", self._cache_field)
+        self._cache_layout.addLayout(self._cache_field_pair)
+        
         self._cache_browse_button = QtGui.QPushButton("Browse")
         self._cache_browse_button.setMaximumSize(QtCore.QSize(50, 20))
         self._cache_browse_button.clicked.connect(self._on_cache_browse)
-        self._cache_layout.addWidget(self._cache_field)
-        self._cache_layout.addWidget(self._cache_browse_button)
+        self._cache_browse_button_pair = Labeled("", self._cache_browse_button)
+        self._cache_layout.addLayout(self._cache_browse_button_pair)
         
         
         self._on_shot_changed()
@@ -62,22 +82,30 @@ class Link(QtGui.QGroupBox):
         self._reference_combo = QtGui.QComboBox()
         self._populate_reference_combo()
         self._reference_combo.currentIndexChanged.connect(self._on_reference_changed)
-        self._reference_layout.addWidget(self._reference_combo)
+        self._reference_combo_pair = Labeled("Reference", self._reference_combo)
+        self._reference_layout.addLayout(self._reference_combo_pair)
+        
+        
         self._selection_field = QtGui.QLineEdit()
+        self._selection_field_pair = Labeled("Geometry", self._selection_field)
+        self._reference_layout.addLayout(self._selection_field_pair)
+        
         self._set_selection_button = QtGui.QPushButton("Set to Selection")
         self._set_selection_button.setMaximumSize(
             self._set_selection_button.sizeHint().boundedTo(QtCore.QSize(1000, 20))
         )
         self._set_selection_button.clicked.connect(self._on_set_clicked)
-        self._reference_layout.addWidget(self._selection_field)
-        self._reference_layout.addWidget(self._set_selection_button)
+        self._set_selection_button_pair = Labeled("", self._set_selection_button)
+        self._reference_layout.addLayout(self._set_selection_button_pair)
+        
         self._on_reference_changed()
         
         # Delete button.
-        self._delete_button = QtGui.QPushButton('Unlink')
-        self._delete_button.setMaximumSize(QtCore.QSize(50, 20))
-        self._delete_button.clicked.connect(self._on_delete_clicked)
-        self.layout().addWidget(self._delete_button)
+        self._clear_button = QtGui.QPushButton('Clear')
+        self._clear_button.setMaximumSize(QtCore.QSize(50, 20))
+        self._clear_button.clicked.connect(self._on_clear_clicked)
+        self._clear_button_pair = Labeled("", self._clear_button)
+        self._reference_layout.addLayout(self._clear_button_pair)
     
     def _populate_shot_combo(self):
         
@@ -118,11 +146,13 @@ class Link(QtGui.QGroupBox):
         shot = str(self._shot_combo.currentText())
         
         is_custom = shot == 'Custom'
-        self._cache_field.setVisible(is_custom)
-        self._cache_browse_button.setVisible(is_custom)
-        self._step_combo.setVisible(not is_custom)
-        self._cache_combo.setVisible(not is_custom)
-        self._name_combo.setVisible(not is_custom)
+        
+        self._cache_field_pair.setVisible(is_custom)
+        self._cache_browse_button_pair.setVisible(is_custom)
+        
+        self._step_pair.setVisible(not is_custom)
+        self._cache_pair.setVisible(not is_custom)
+        self._object_pair.setVisible(not is_custom)
         
         if not is_custom:
             self._populate_step_combo()
@@ -149,13 +179,13 @@ class Link(QtGui.QGroupBox):
                 self._cache_combo.removeItem(0)
             else:
                 return
-        self._populate_name_combo()
+        self._populate_object_combo()
         
     
-    def _populate_name_combo(self):
+    def _populate_object_combo(self):
         
         cache = str(self._cache_combo.currentText())
-        self._name_combo.clear()
+        self._object_combo.clear()
         
         if not cache:
             return
@@ -166,9 +196,9 @@ class Link(QtGui.QGroupBox):
         path = os.path.join(path, str(self._step_combo.currentText()), 'maya', 'data', 'geo_cache', cache)
         if os.path.exists(path):
             for name in os.listdir(path):
-                self._name_combo.addItem(name)
+                self._object_combo.addItem(name)
     
-    def _on_name_changed(self, index=None):
+    def _on_object_changed(self, index=None):
         last_ref = str(self._reference_combo.currentText())
         self._populate_reference_combo(last_ref)
     
@@ -180,7 +210,7 @@ class Link(QtGui.QGroupBox):
         else:
             step = str(self._step_combo.currentText())
             cache = str(self._cache_combo.currentText())
-            name = str(self._name_combo.currentText())
+            name = str(self._object_combo.currentText())
             if not (shot and step and cache and name):
                 return
             path = workspace[:workspace.find(self._current_shot)] + shot
@@ -221,12 +251,17 @@ class Link(QtGui.QGroupBox):
         print 'reference', namespace, path
         
         is_custom = namespace == 'Custom'
-        self._selection_field.setVisible(is_custom)
-        self._set_selection_button.setVisible(is_custom)
+        self._selection_field_pair.setVisible(is_custom)
+        self._set_selection_button_pair.setVisible(is_custom)
         
-        if not is_custom:
-            # Link the reference here.
-            pass
+        self._selection_field.updateGeometry()
+        self._set_selection_button.updateGeometry()
+        self.updateGeometry()
+        #self.adjustSize()
+        #self.layout().update()
+        #self.repaint()
+        
+        
             
     def _on_cache_browse(self):
         file_name = str(QtGui.QFileDialog.getOpenFileName(self, "Select Geocache", os.getcwd(), "Geocaches (*.xml)"))
@@ -245,8 +280,10 @@ class Link(QtGui.QGroupBox):
     def _on_set_clicked(self):
         self._selection_field.setText(', '.join(cmds.ls(selection=True)))
         
-    def _on_delete_clicked(self):
-        self.destroy()
+    def _on_clear_clicked(self):
+        # Set to "Custom", and clear the selection.
+        self._reference_combo.setCurrentIndex(self._reference_combo.count() - 1)
+        self._selection_field.setText('')
         
 
 class Dialog(QtGui.QMainWindow):
@@ -269,9 +306,24 @@ class Dialog(QtGui.QMainWindow):
         area_widget.setLayout(layout)
         area.setWidget(area_widget)
         
+        button_layout = QtGui.QHBoxLayout()
+        layout.addLayout(button_layout)
+        
         self._add_button = button = QtGui.QPushButton("Add Link...")
-        layout.addWidget(button)
+        button.setMinimumSize(button.sizeHint().expandedTo(QtCore.QSize(100, 0)))
+        button_layout.addWidget(button)
         button.clicked.connect(self._on_add_link)
+        
+        button_layout.addStretch()
+        
+        self._apply_button = button = QtGui.QPushButton("Apply")
+        button.setMinimumSize(button.sizeHint().expandedTo(QtCore.QSize(100, 0)))
+        button_layout.addWidget(button)
+        #button.clicked.connect(self._on_add_link)
+        self._save_button = button = QtGui.QPushButton("Save")
+        button.setMinimumSize(button.sizeHint().expandedTo(QtCore.QSize(100, 0)))
+        button_layout.addWidget(button)
+        #button.clicked.connect(self._on_add_link)
         
         layout.addStretch()
         
