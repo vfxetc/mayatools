@@ -11,6 +11,14 @@ from maya import cmds, mel
 from ks.core.scene_name.core import SceneName
 
 
+def comparison_name(name):
+    name = name.rsplit('|', 1)[-1]
+    name = name.rsplit(':', 1)[-1]
+    if name.lower().endswith('deformed'):
+        name = name[:-len('deformed')]
+    return name
+
+
 class Labeled(QtGui.QVBoxLayout):
 
     def __init__(self, label, widget):
@@ -242,8 +250,8 @@ class Link(QtGui.QGroupBox):
             references = cmds.file(q=True, reference=True)
             for reference in references:
                 raw_nodes = cmds.referenceQuery(reference, nodes=True)
-                nodes = set(x.split(':')[-1] for x in raw_nodes)
-                if all(x in nodes for x in channels):
+                nodes = set(comparison_name(x) for x in raw_nodes)
+                if all(comparison_name(x) in nodes for x in channels):
                     namespace = raw_nodes[0].rsplit(':', 1)[0]
                     self._reference_combo.addItem(namespace, reference)
         
@@ -359,24 +367,39 @@ class Dialog(QtGui.QMainWindow):
             selection = link.getSelection()
             print link
             print cache
-            if cache and selection:
-                channels = set(x.split(':')[-1] for x in cmds.cacheFile(
-                    query=True,
-                    fileName=cache,
-                    channelName=True,
-                ) or [])
-                print selection
-                # selection = [x for x in selection if x.split(':')[-1] in channels]
-
-                print channels
-                print selection
+            
+            if not cache or not selection:
+                continue
+            
+            # When a cache is created Maya creates a new shape node with
+            # "Deformed" appended to it. When the cache is deleted, Maya does
+            # not restore the network to it's original state, so the shapeNode
+            # is still named deformed. Trying to re-cache once this has
+            # happened breaks the import as the expected names have changed
+            # from the export.To avoid this, the transform node is always
+            # selected instead of the shape. The shape node is whats exported
+            # in the original geoCache export file.
+            cmds.select(clear=True)
+            for name in selection:
+                type_ = cmds.nodeType(name)
+                if type_ == 'mesh':
+                    cmds.select(cmds.listRelatives(name, parent=True)[0])
+                elif type_ == 'transform':
+                    cmds.select(name)
                 
-                cmds.select(selection, replace=True) 
-                mel.eval("source doImportCacheFile.mel")
-                mel.eval('doImportCacheFile("%s", "Best Guess", {}, {})' % (
-                    cache,
-                    # ', '.join('"%s"' % x for x in selection),
-                ))
+            channels = set(x.split(':')[-1] for x in cmds.cacheFile(
+                query=True,
+                fileName=cache,
+                channelName=True,
+            ) or [])
+            print channels
+            print cmds.ls(sl=True)
+            
+            mel.eval("source doImportCacheFile.mel")
+            mel.eval('doImportCacheFile("%s", "Best Guess", {}, {})' % (
+                cache,
+                # ', '.join('"%s"' % x for x in selection),
+            ))
             
 __also_reload__ = ['ks.core.scene_name.core']
 def __before_reload__():
