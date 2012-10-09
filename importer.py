@@ -9,6 +9,10 @@ Qt = QtCore.Qt
 from maya import cmds, mel
 
 from ks.core.scene_name.core import SceneName
+from sgfs import SGFS
+
+
+sgfs = SGFS()
 
 
 def comparison_name(name):
@@ -17,6 +21,14 @@ def comparison_name(name):
     if name.lower().endswith('deformed'):
         name = name[:-len('deformed')]
     return name
+
+
+class ComboBox(QtGui.QComboBox):
+    
+    def currentData(self):
+        index = self.currentIndex()
+        data = self.itemData(index).toPyObject()
+        return data
 
 
 class Labeled(QtGui.QVBoxLayout):
@@ -31,6 +43,7 @@ class Labeled(QtGui.QVBoxLayout):
     def setVisible(self, visible):
         self._label.setVisible(visible)
         self._widget.setVisible(visible)
+
 
 class Link(QtGui.QGroupBox):
     
@@ -51,23 +64,23 @@ class Link(QtGui.QGroupBox):
         
         ## Cache widgets
         
-        self._shot_combo = QtGui.QComboBox()
+        self._shot_combo = ComboBox()
         self._populate_shot_combo()        
         self._shot_combo.currentIndexChanged.connect(self._on_shot_changed)
         self._shot_pair = Labeled("Shot", self._shot_combo)
         self._cache_layout.addLayout(self._shot_pair)
             
-        self._step_combo = QtGui.QComboBox()
+        self._step_combo = ComboBox()
         self._step_combo.currentIndexChanged.connect(self._on_step_changed)
         self._step_pair = Labeled("Step", self._step_combo)
         self._cache_layout.addLayout(self._step_pair)
         
-        self._cache_combo = QtGui.QComboBox()
+        self._cache_combo = ComboBox()
         self._cache_combo.currentIndexChanged.connect(self._on_cache_changed)
         self._cache_pair = Labeled("Geocache", self._cache_combo)
         self._cache_layout.addLayout(self._cache_pair)
         
-        self._object_combo = QtGui.QComboBox()
+        self._object_combo = ComboBox()
         self._object_combo.currentIndexChanged.connect(self._on_object_changed)
         self._object_pair = Labeled("Object", self._object_combo)
         self._cache_layout.addLayout(self._object_pair)
@@ -87,7 +100,7 @@ class Link(QtGui.QGroupBox):
         
         ## Reference widgets
         
-        self._reference_combo = QtGui.QComboBox()
+        self._reference_combo = ComboBox()
         self._populate_reference_combo()
         self._reference_combo.currentIndexChanged.connect(self._on_reference_changed)
         self._reference_combo_pair = Labeled("Reference", self._reference_combo)
@@ -119,39 +132,39 @@ class Link(QtGui.QGroupBox):
         
         # Populate shot combo with all reuses that match the current workspace.
         workspace = cmds.workspace(q=True, directory=True)
-        m = re.match(r'(.+?)/SEQ/(\w{2})/(\w+)(?:/|$)', workspace)
-        if m:
-            root, seq, self._current_shot = m.groups()
-            m = re.match(r'%s_(\d{3})_(\d{3})$' % seq, self._current_shot)
-            if m:
-                use, reuse = m.groups()
-                for file_name in os.listdir(os.path.join(root, 'SEQ', seq)):
-                    if re.match(r'%s_%s_\d{3}$' % (seq, use), file_name):
-                        self._shot_combo.addItem(file_name)
-                        if file_name == self._current_shot:
-                            self._shot_combo.setCurrentIndex(self._shot_combo.count() - 1)
+        tasks = sgfs.entities_from_path(workspace)
+        if not tasks or tasks[0]['type'] != 'Task':
+            raise ValueError('workspace does not have tasks: %r' % tasks)
+        task = tasks[0]
+        shot = task.parent()
+        if shot['type'] != 'Shot':
+            raise ValueError('cashin only works on Shots; %r' % shot)
+        seq = shot.parent()
+        seq_path = sgfs.path_for_entity(seq)
+        for sibling_path, sibling in sgfs.entities_in_directory(seq_path, "Shot", load_tags=None):
+            if sibling['code'].startswith(shot['code'][:6]):
+                self._shot_combo.addItem(sibling['code'], (sibling_path, sibling))
         
         self._shot_combo.addItem('Custom')
     
     def _populate_step_combo(self):
+        
         self._step_combo.clear()
-        namer = SceneName(
-            workspace=cmds.workspace(q=True, directory=True).replace(self._current_shot, str(self._shot_combo.currentText())),
-            warning=cmds.warning,
-            error=cmds.warning,
-        )
-        steps = namer.get_step_names()
-        if not steps:
+        
+        data = self._shot_combo.currentData()
+        if not data:
             return
-        for i, name in enumerate(steps):
-            self._step_combo.addItem(name)
-            if name.lower().startswith('anim'):
-                self._step_combo.setCurrentIndex(i)
+        shot_path, shot = data
         
+        for task_path, task in sgfs.entities_in_directory(shot_path, 'Task', load_tags=None):
+            self._step_combo.addItem(task['step']['code'], (task_path, task))
+            if task['step']['code'].lower().startswith('anim'):
+                self._step_combo.setCurrentIndex(self._step_combo.count() - 1)
+
     def _on_shot_changed(self, index=None):
-        shot = str(self._shot_combo.currentText())
         
-        is_custom = shot == 'Custom'
+        shot = self._shot_combo.currentData()
+        is_custom = shot is None
         
         self._cache_field_pair.setVisible(is_custom)
         self._cache_browse_button_pair.setVisible(is_custom)
@@ -170,41 +183,40 @@ class Link(QtGui.QGroupBox):
         self._populate_cache_combo()
         
     def _populate_cache_combo(self):
+        
         self._cache_combo.clear()
         self._cache_combo.addItem('Select...')
-        # TODO: Do this with SGFS.
-        path = cmds.workspace(q=True, directory=True)
-        path = path[:path.find(self._current_shot)] + str(self._shot_combo.currentText())
-        path = os.path.join(path, str(self._step_combo.currentText()), 'maya', 'data', 'geo_cache')
-        if os.path.exists(path):
-            for name in os.listdir(path):
-                self._cache_combo.addItem(name)
+        
+        data = self._step_combo.currentData()
+        if not data:
+            return
+        task_path, task = data
+        
+        for geo_cache_name in ('geocache', 'geo_cache', 'geoCache'):
+            path = os.path.join(task_path, 'maya', 'data', geo_cache_name)
+            if os.path.exists(path):
+                for name in os.listdir(path):
+                    self._cache_combo.addItem(name, (os.path.join(path, name), name))
     
     def _on_cache_changed(self, index=None):
-        
         if self._cache_combo.itemText(0) == 'Select...':
             if index:
                 self._cache_combo.removeItem(0)
             else:
                 return
         self._populate_object_combo()
-        
     
     def _populate_object_combo(self):
-        
-        cache = str(self._cache_combo.currentText())
         self._object_combo.clear()
         
-        if not cache:
+        data = self._cache_combo.currentData()
+        if not data:
             return
+        path, name = data
         
-        # TODO: Do this with SGFS.
-        path = cmds.workspace(q=True, directory=True)
-        path = path[:path.find(self._current_shot)] + str(self._shot_combo.currentText())
-        path = os.path.join(path, str(self._step_combo.currentText()), 'maya', 'data', 'geo_cache', cache)
         if os.path.exists(path):
             for name in os.listdir(path):
-                self._object_combo.addItem(name)
+                self._object_combo.addItem(name, (os.path.join(path, name), name))
     
     def _on_object_changed(self, index=None):
         last_ref = str(self._reference_combo.currentText())
@@ -212,19 +224,18 @@ class Link(QtGui.QGroupBox):
     
     def cachePath(self):
         workspace = cmds.workspace(q=True, directory=True)
-        shot = str(self._shot_combo.currentText())
         
-        if shot == 'Custom':
+        shot_data = self._shot_combo.currentData()
+                
+        if not shot_data:
             path = os.path.join(workspace, str(self._cache_field.text()))
         
         else:
-            step = str(self._step_combo.currentText())
-            cache = str(self._cache_combo.currentText())
-            name = str(self._object_combo.currentText())
-            if not (shot and step and cache and name):
-                return
-            path = workspace[:workspace.find(self._current_shot)] + shot
-            path = os.path.join(path, step, 'maya', 'data', 'geo_cache', cache, name, name + '.xml')
+            data = self._object_combo.currentData()
+            if not data:
+                return None
+            path, name = data
+            path = os.path.join(path, name + '.xml')
         
         if not os.path.exists(path):
             cmds.warning('Could not find cache: %r' % path)
@@ -234,7 +245,12 @@ class Link(QtGui.QGroupBox):
     
     def setCachePath(self, path):
         self._shot_combo.setCurrentIndex(self._shot_combo.count() - 1)
-        self._cache_field.setText(path)
+        workspace = cmds.workspace(q=True, directory=True)
+        relative = os.path.relpath(path, workspace)
+        if relative.startswith('.'):
+            self._cache_field.setText(path)
+        else:
+            self._cache_field.setText(relative)
     
     def _populate_reference_combo(self, select="Custom"):
         self._reference_combo.clear()
@@ -246,8 +262,6 @@ class Link(QtGui.QGroupBox):
             channelName=True,
         ) if cache_path else None
         
-        print cache_path
-        print channels
         
         if channels is not None:
             channels = [x.split(':')[-1] for x in channels]
@@ -264,7 +278,6 @@ class Link(QtGui.QGroupBox):
     def _on_reference_changed(self, index=None):
         namespace = str(self._reference_combo.currentText())
         reference = str(self._reference_combo.itemData(index).toString()) if index is not None else None
-        print 'reference', namespace, reference
         
         is_custom = namespace == 'Custom'
         self._selection_field_pair.setVisible(is_custom)
@@ -362,19 +375,15 @@ class Dialog(QtGui.QMainWindow):
         
         switches = cmds.ls(type="historySwitch")
         for switch in switches:
-            print 'switch', switch
             cache = None
             selection = []
             for connection in cmds.listConnections(switch, source=True):
                 type_ = cmds.nodeType(connection)
-                print '\t', type_, connection
                 if type_ == 'cacheFile':
                     cache = cmds.cacheFile(connection, q=True, fileName=True)[0]
                 elif type_ in ('mesh', 'transform'):
                     selection.append(connection)
             
-            print 'CACHE', repr(cache)
-            print 'SELECTION', selection
             if not cache or not selection:
                 continue
             
@@ -401,8 +410,6 @@ class Dialog(QtGui.QMainWindow):
         for link in self._links:
             cache = link.cachePath()
             selection = link.getSelection()
-            print link
-            print cache
             
             if not selection:
                 continue
@@ -413,11 +420,9 @@ class Dialog(QtGui.QMainWindow):
             for node in history:
                 if cmds.nodeType(node) == 'cacheFile':
                     caches.append(node)
-            print 'existing caches', caches
             if caches:
                 caches = list(set(caches))
                 if len(caches) == 1 and cmds.cacheFile(caches[0], q=True, fileName=True)[0] == cache:
-                    print 'this is already ok; leave it alone'
                     continue
                 else:
                     mel.eval('deleteCacheFile(3, {"keep", "%s", "geometry"})' % (
@@ -446,8 +451,6 @@ class Dialog(QtGui.QMainWindow):
                 fileName=cache,
                 channelName=True,
             ) or [])
-            print channels
-            print cmds.ls(sl=True)
             
             # mel.eval("source doImportCacheFile.mel")
             mel.eval('doImportCacheFile("%s", "Best Guess", {}, {})' % (
