@@ -210,7 +210,7 @@ class Link(QtGui.QGroupBox):
         last_ref = str(self._reference_combo.currentText())
         self._populate_reference_combo(last_ref)
     
-    def getCachePath(self):
+    def cachePath(self):
         workspace = cmds.workspace(q=True, directory=True)
         shot = str(self._shot_combo.currentText())
         
@@ -232,10 +232,14 @@ class Link(QtGui.QGroupBox):
         
         return path
     
+    def setCachePath(self, path):
+        self._shot_combo.setCurrentIndex(self._shot_combo.count() - 1)
+        self._cache_field.setText(path)
+    
     def _populate_reference_combo(self, select="Custom"):
         self._reference_combo.clear()
         
-        cache_path = self.getCachePath()
+        cache_path = self.cachePath()
         channels = cmds.cacheFile(
             query=True,
             fileName=cache_path,
@@ -284,7 +288,11 @@ class Link(QtGui.QGroupBox):
             return selection
         else:
             return cmds.referenceQuery(reference, nodes=True)
-        
+    
+    def setSelection(self, selection):
+        self._reference_combo.setCurrentIndex(self._reference_combo.count() - 1)
+        self._selection_field.setText(', '.join(selection))
+    
     def _on_cache_browse(self):
         file_name = str(QtGui.QFileDialog.getOpenFileName(self, "Select Geocache", os.getcwd(), "Geocaches (*.xml)"))
         if not file_name:
@@ -314,6 +322,7 @@ class Dialog(QtGui.QMainWindow):
         super(Dialog, self).__init__()
         self._links = []
         self._init_ui()
+        self._populate_existing()
     
     def _init_ui(self):
         self.setWindowTitle('Geocache Import')
@@ -348,7 +357,34 @@ class Dialog(QtGui.QMainWindow):
         button.clicked.connect(self._on_save_clicked)
         
         layout.addStretch()
+    
+    def _populate_existing(self):
         
+        switches = cmds.ls(type="historySwitch")
+        for switch in switches:
+            print 'switch', switch
+            cache = None
+            selection = []
+            for connection in cmds.listConnections(switch, source=True):
+                type_ = cmds.nodeType(connection)
+                print '\t', type_, connection
+                if type_ == 'cacheFile':
+                    cache = cmds.cacheFile(connection, q=True, fileName=True)[0]
+                elif type_ in ('mesh', 'transform'):
+                    selection.append(connection)
+            
+            print 'CACHE', repr(cache)
+            print 'SELECTION', selection
+            if not cache or not selection:
+                continue
+            
+            link = Link(self._scroll_layout.count() - 1)
+            link.setCachePath(cache)
+            link.setSelection(selection)
+            
+            self._links.append(link)
+            self._scroll_layout.insertWidget(self._scroll_layout.count() - 2, link)
+            
         self._on_add_link()
     
     def _on_add_link(self):
@@ -363,22 +399,40 @@ class Dialog(QtGui.QMainWindow):
     def _on_apply_clicked(self):
         original_selection = cmds.ls(sl=True)
         for link in self._links:
-            cache = link.getCachePath()
+            cache = link.cachePath()
             selection = link.getSelection()
             print link
             print cache
             
-            if not cache or not selection:
+            if not selection:
                 continue
+            
+            # Delete existing caches.
+            history = cmds.listHistory(selection, levels=2)
+            caches = []
+            for node in history:
+                if cmds.nodeType(node) == 'cacheFile':
+                    caches.append(node)
+            print 'existing caches', caches
+            if caches:
+                caches = list(set(caches))
+                if len(caches) == 1 and cmds.cacheFile(caches[0], q=True, fileName=True)[0] == cache:
+                    print 'this is already ok; leave it alone'
+                    continue
+                else:
+                    mel.eval('deleteCacheFile(3, {"keep", "%s", "geometry"})' % (
+                        ','.join(caches),
+                    ))
+                
             
             # When a cache is created Maya creates a new shape node with
             # "Deformed" appended to it. When the cache is deleted, Maya does
             # not restore the network to it's original state, so the shapeNode
             # is still named deformed. Trying to re-cache once this has
             # happened breaks the import as the expected names have changed
-            # from the export.To avoid this, the transform node is always
+            # from the export. To avoid this, the transform node is always
             # selected instead of the shape. The shape node is whats exported
-            # in the original geoCache export file.
+            # in the original cache.
             cmds.select(clear=True)
             for name in selection:
                 type_ = cmds.nodeType(name)
@@ -395,7 +449,7 @@ class Dialog(QtGui.QMainWindow):
             print channels
             print cmds.ls(sl=True)
             
-            mel.eval("source doImportCacheFile.mel")
+            # mel.eval("source doImportCacheFile.mel")
             mel.eval('doImportCacheFile("%s", "Best Guess", {}, {})' % (
                 cache,
                 # ', '.join('"%s"' % x for x in selection),
