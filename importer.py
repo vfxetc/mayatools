@@ -80,8 +80,8 @@ class Labeled(QtGui.QVBoxLayout):
 
 class Link(QtGui.QGroupBox):
     
-    def __init__(self, index):
-        super(Link, self).__init__() #"Link %d" % index)
+    def __init__(self):
+        super(Link, self).__init__()
         self._setup_ui()
     
     def _setup_ui(self):
@@ -99,22 +99,22 @@ class Link(QtGui.QGroupBox):
 
         self._entity_combo = ComboBox()
         self._populate_entity_combo()        
-        self._entity_combo.currentIndexChanged.connect(self._on_entity_changed)
+        self._entity_combo.activated.connect(self._on_entity_changed)
         self._entity_pair = Labeled("Entity", self._entity_combo)
         self._cache_layout.addLayout(self._entity_pair)
             
         self._step_combo = ComboBox()
-        self._step_combo.currentIndexChanged.connect(self._on_step_changed)
+        self._step_combo.activated.connect(self._on_step_changed)
         self._step_pair = Labeled("Step", self._step_combo)
         self._cache_layout.addLayout(self._step_pair)
         
         self._cache_combo = ComboBox()
-        self._cache_combo.currentIndexChanged.connect(self._on_cache_changed)
+        self._cache_combo.activated.connect(self._on_cache_changed)
         self._cache_pair = Labeled("Cache", self._cache_combo)
         self._cache_layout.addLayout(self._cache_pair)
         
         self._object_combo = ComboBox()
-        self._object_combo.currentIndexChanged.connect(self._on_object_changed)
+        self._object_combo.activated.connect(self._on_object_changed)
         self._object_pair = Labeled("Object", self._object_combo)
         self._cache_layout.addLayout(self._object_pair)
         
@@ -141,7 +141,7 @@ class Link(QtGui.QGroupBox):
         
         self._reference_combo = ComboBox()
         self._populate_reference_combo()
-        self._reference_combo.currentIndexChanged.connect(self._on_reference_changed)
+        self._reference_combo.activated.connect(self._on_reference_changed)
         self._reference_combo_pair = Labeled("Reference", self._reference_combo)
         self._reference_layout.addLayout(self._reference_combo_pair)
         
@@ -161,6 +161,7 @@ class Link(QtGui.QGroupBox):
         self._on_reference_changed()
     
     def _populate_entity_combo(self):
+        print '# _populate_entity_combo'
         
         self._entity_combo.clear()
         
@@ -203,6 +204,7 @@ class Link(QtGui.QGroupBox):
         
         
     def _populate_step_combo(self):
+        print '# _populate_step_combo'
         
         self._step_combo.clear()
         
@@ -238,6 +240,7 @@ class Link(QtGui.QGroupBox):
         self._populate_cache_combo()
         
     def _populate_cache_combo(self):
+        print '# _populate_cache_combo'
         
         self._cache_combo.clear()
         self._cache_combo.addItem('Select...')
@@ -252,6 +255,8 @@ class Link(QtGui.QGroupBox):
             if os.path.exists(path):
                 for name in os.listdir(path):
                     self._cache_combo.addItem(name, dict(path=os.path.join(path, name), name=name))
+        
+        self._populate_object_combo()
     
     def _on_cache_changed(self, index=None):
         if self._cache_combo.itemText(0) == 'Select...':
@@ -262,6 +267,10 @@ class Link(QtGui.QGroupBox):
         self._populate_object_combo()
     
     def _populate_object_combo(self):
+        print '# _populate_object_combo'
+        
+        previous = self._object_combo.currentData() or {}
+        
         self._object_combo.clear()
         
         data = self._cache_combo.currentData()
@@ -271,7 +280,18 @@ class Link(QtGui.QGroupBox):
         
         if os.path.exists(path):
             for name in os.listdir(path):
-                self._object_combo.addItem(name, dict(path=os.path.join(path, name), name=name))
+                obj_path = os.path.join(path, name)
+                self._object_combo.addItem(name, dict(path=obj_path, name=name))
+                if obj_path == previous.get('path'):
+                    self._object_combo.setCurrentIndex(self._object_combo.count() - 1)
+        
+        current = self._object_combo.currentData()
+        if not current:
+            self._object_combo.setCurrentIndex(self._object_combo.count() - 1)
+            current = self._object_combo.currentData() or {}
+        if not previous.get('path') or previous.get('path') != current.get('path'):
+            self._on_object_changed()
+            
     
     def _on_object_changed(self, index=None):
         self._populate_reference_combo()
@@ -320,8 +340,11 @@ class Link(QtGui.QGroupBox):
                     # Assume that the combos automatically trigger the next
                     # the automatically populate.
                     self._entity_combo.setCurrentIndex(shot_i)
+                    self._populate_step_combo()
                     self._step_combo.setCurrentIndex(self._step_combo.indexWithText(task['step']['code']))
+                    self._populate_cache_combo()
                     self._cache_combo.setCurrentIndex(self._cache_combo.indexWithText(cache_name))
+                    self._populate_object_combo()
                     self._object_combo.setCurrentIndex(self._object_combo.indexWithText(object_name))
                     return
         
@@ -334,9 +357,9 @@ class Link(QtGui.QGroupBox):
             self._cache_field.setText(relative)
     
     def _populate_reference_combo(self):
+        print '# _populate_reference_combo'
         
         previous = self._reference_combo.currentData() or {}
-        reselect_previous = previous.get('full') or previous.get('partial')
         
         self._reference_combo.clear()
         
@@ -367,11 +390,17 @@ class Link(QtGui.QGroupBox):
                 partial=partial,
             )
         
+        # Only reselect the previous if it still has atleast a partial match.
+        reselect_previous = references.get(previous.get('namespace'), {}).get('partial')
+        
         selected = False
         for namespace, data in sorted(references.iteritems()):
+            
+            # Add to the combobox.
             label = ' [full]' if data['full'] else ' [partial]' if data['partial'] else ''
             self._reference_combo.addItem(namespace + label, data)
             
+            # Select the new reference.
             if reselect_previous:
                 if previous['reference'] == data['reference']:
                     self._reference_combo.setCurrentIndex(self._reference_combo.count() - 1)
@@ -382,6 +411,7 @@ class Link(QtGui.QGroupBox):
         
         self._reference_combo.insertSeparator(1000)
         self._reference_combo.addItem("Custom")
+        
     
     def _on_reference_changed(self, index=None):
         namespace = str(self._reference_combo.currentText())
@@ -390,13 +420,6 @@ class Link(QtGui.QGroupBox):
         is_custom = namespace == 'Custom'
         self._selection_field_pair.setVisible(is_custom)
         self._set_selection_button_pair.setVisible(is_custom)
-        
-        # self._selection_field.updateGeometry()
-        # self._set_selection_button.updateGeometry()
-        # self.updateGeometry()
-        # #self.adjustSize()
-        # #self.layout().update()
-        # #self.repaint()
     
     def getSelection(self):
         data = self._reference_combo.currentData()
@@ -442,6 +465,7 @@ class Link(QtGui.QGroupBox):
         # Set to "Custom", and clear the selection.
         self._entity_combo.setCurrentIndex(self._entity_combo.count() - 1)
         self._cache_field.setText('')
+        self._on_entity_changed()
     
 
 class Dialog(QtGui.QMainWindow):
@@ -502,7 +526,7 @@ class Dialog(QtGui.QMainWindow):
             if not cache or not selection:
                 continue
             
-            link = Link(self._scroll_layout.count() - 1)
+            link = Link()
             link.setCachePath(cache)
             link.setSelection(selection)
             
@@ -513,7 +537,7 @@ class Dialog(QtGui.QMainWindow):
             self._on_add_link()
     
     def _on_add_link(self):
-        link = Link(self._scroll_layout.count() - 1)
+        link = Link()
         self._links.append(link)
         self._scroll_layout.insertWidget(self._scroll_layout.count() - 2, link)
     
