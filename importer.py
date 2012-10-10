@@ -111,11 +111,11 @@ class ChannelMapping(ComboBox):
 
 class Geometry(QtGui.QWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, mapping=None, parent=None):
         super(Geometry, self).__init__(parent)
         
         #: Map mesh names to channels.
-        self._mapping = {}
+        self._mapping = mapping or {}
         
         self._setup_pre_ui()
         self._setup_ui()
@@ -181,7 +181,16 @@ class Geometry(QtGui.QWidget):
         return self._mapping
         
     def meshes(self):
-        return [x for x in self.nodes() if cmds.nodeType(x) == 'mesh']
+        res = set()
+        for node in self.nodes():
+            type_ = cmds.nodeType(node)
+            if type_ == 'transform':
+                shapes = cmds.listRelatives(node, children=True, shapes=True)
+                if shapes:
+                    res.add(shapes[0])
+            elif type_ == 'mesh':
+                res.add(node)
+        return sorted(res)
     
     def _cache_changed(self, geocache):
         self._channels_changed(geocache.channels())
@@ -242,8 +251,8 @@ class Geometry(QtGui.QWidget):
 
 class Reference(Geometry):
     
-    def __init__(self, reference=None, parent=None):
-        super(Reference, self).__init__(parent)
+    def __init__(self, reference=None, mapping=None, parent=None):
+        super(Reference, self).__init__(mapping=mapping, parent=parent)
         if reference is not None:
             self.setReference(reference)
     
@@ -291,8 +300,8 @@ class Reference(Geometry):
 
 class Selection(Geometry):
     
-    def __init__(self, selection=None, parent=None):
-        super(Selection, self).__init__(parent)
+    def __init__(self, selection=None, mapping=None, parent=None):
+        super(Selection, self).__init__(mapping=mapping, parent=parent)
         self.setSelection(selection)
     
     def _setup_ui(self):
@@ -657,6 +666,28 @@ class Geocache(QtGui.QGroupBox):
         for geo in self._geometry:
             mapping.update((k, v) for k, v in geo.mapping().iteritems() if v in channels)
         return mapping
+    
+    def setMapping(self, mapping):
+        
+        references = {}
+        selection = {}
+        for shape, channel in mapping.iteritems():
+            try:
+                reference = cmds.referenceQuery(shape, filename=True)
+            except RuntimeError:
+                selection[shape] = channel
+            else:
+                references.setdefault(reference, {})[shape] = channel
+        
+        for reference, mapping in sorted(references.iteritems()):
+            geo = Reference(reference=reference, mapping=mapping, parent=self)
+            self._geometry.append(geo)
+            self._geometry_layout.addWidget(geo)
+        
+        if selection:
+            geo = Selection(selection=selection.keys(), mapping=selection, parent=self)
+            self._geometry.append(geo)
+            self._geometry_layout.addWidget(geo)
 
 
 class Dialog(QtGui.QDialog):
@@ -709,23 +740,35 @@ class Dialog(QtGui.QDialog):
     
     def _populate_existing(self):
         
-        switches = cmds.ls(type="historySwitch")
-        for switch in []:#switches:
-            cache = None
-            selection = []
-            for connection in cmds.listConnections(switch, source=True):
-                type_ = cmds.nodeType(connection)
-                if type_ == 'cacheFile':
-                    cache = cmds.cacheFile(connection, q=True, fileName=True)[0]
-                elif type_ in ('mesh', 'transform'):
-                    selection.append(connection)
+        mappings = {}
+        cache_nodes = cmds.ls(type='cacheFile') or []
+        for cache_node in cache_nodes:
+            cache_path = cmds.cacheFile(cache_node, q=True, fileName=True)[0]
+            mapping = mappings.setdefault(cache_path, {})
             
-            if not cache or not selection:
+            # Identify what it is connected to.
+            channel = cmds.getAttr(cache_node + '.channel[0]')
+            switch = cmds.listConnections(cache_node + '.outCacheData[0]')[0]
+            switch_type = cmds.nodeType(switch)
+            if switch_type != 'historySwitch':
+                cmds.warning('Unknown cache node layout; found %s %r' % (switch_type, switch))
                 continue
+            transform = cmds.listConnections(switch + '.outputGeometry[0]')[0]
+            shapes = cmds.listRelatives(transform, children=True, shapes=True)
+            if len(shapes) == 2 and shapes[1].startswith(shapes[0]) and shapes[1][len(shapes[0]):] in ('Deformed', 'Orig'):
+                shapes = [shapes[0]]
+            if len(shapes) != 1:
+                cmds.warning('Could not identify single shape connected to cache; found %r' % shapes)
+                continue
+            shape = shapes[0]
+            
+            mapping[shape] = channel
+        
+        for cache_path, mapping in sorted(mappings.iteritems()):
             
             geocache = Geocache()
-            geocache.setCachePath(cache)
-            geocache.setSelection(selection)
+            geocache.setCachePath(cache_path)
+            geocache.setMapping(mapping)
             
             self._geocaches.append(geocache)
             self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, geocache)
