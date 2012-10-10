@@ -101,7 +101,6 @@ class Geometry(QtGui.QWidget):
         self.hide()
         self.destroy()
 
-
 class RefDelegate(QtGui.QItemDelegate):
     
     def paint(self, painter, option, index):
@@ -176,6 +175,7 @@ class Geocache(QtGui.QGroupBox):
     
     def __init__(self):
         super(Geocache, self).__init__()
+        self._mapping = {}
         self._setup_ui()
     
     def _setup_ui(self):
@@ -210,7 +210,7 @@ class Geocache(QtGui.QGroupBox):
         self._cache_layout.addLayout(self._object_pair)
         
         self._cache_field = QtGui.QLineEdit()
-        self._cache_field.editingFinished.connect(self._populate_reference_combo)
+        # self._cache_field.editingFinished.connect(self._populate_reference_combo)
         self._cache_field_pair = Labeled("Path to Custom Geocache", self._cache_field)
         self._cache_layout.addLayout(self._cache_field_pair)
         
@@ -222,10 +222,8 @@ class Geocache(QtGui.QGroupBox):
         
         self._on_entity_changed()
         
-        ## Reference widgets
-                
-        #self._geometry_box = QtGui.QWidget()#("Geometry and References")
-        #self.layout().addWidget(self._geometry_box)
+        ## Geometry widgets
+        
         self.layout().addWidget(QtGui.QLabel("Geometry & References"))
         
         self._geometry_layout = QtGui.QVBoxLayout()
@@ -247,7 +245,6 @@ class Geocache(QtGui.QGroupBox):
         self._link_selection_button.clicked.connect(self._on_link_selection)
         self._link_selection_button.setMaximumHeight(22)
         button_layout.addWidget(self._link_selection_button)
-        
         
         icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/cog.png')
         icon = QtGui.QIcon(icon.pixmap(12, 12))
@@ -398,15 +395,25 @@ class Geocache(QtGui.QGroupBox):
             current = self._object_combo.currentData() or {}
         if not previous.get('path') or previous.get('path') != current.get('path'):
             self._on_object_changed()
-            
     
     def _on_object_changed(self, index=None):
         pass
-        # self._populate_reference_combo()
-    
-    def cachePath(self):
+
+    def _on_cache_browse(self):
+        file_name = str(QtGui.QFileDialog.getOpenFileName(self, "Select Geocache", os.getcwd(), "Geocaches (*.xml)"))
+        if not file_name:
+            return
+
         workspace = cmds.workspace(q=True, directory=True)
+        relative = os.path.relpath(file_name, workspace)
+        if relative.startswith('.'):
+            self._cache_field.setText(file_name)
+        else:
+            self._cache_field.setText(relative)
         
+    def cachePath(self):
+        
+        workspace = cmds.workspace(q=True, directory=True)
         entity_data = self._entity_combo.currentData()
                 
         if not entity_data:
@@ -465,124 +472,20 @@ class Geocache(QtGui.QGroupBox):
         else:
             self._cache_field.setText(relative)
     
-    def _populate_reference_combo(self):
-        print '# _populate_reference_combo'
-        
-        previous = self._reference_combo.currentData() or {}
-        
-        self._reference_combo.clear()
-        
+    def channels(self):
         cache_path = self.cachePath()
-        channels = cmds.cacheFile(
-            query=True,
-            fileName=cache_path,
-            channelName=True,
-        ) or [] if cache_path else []
-        channels = [x.split(':')[-1] for x in channels]
-        
-        selected = False
-        
-        references = {}
-        for reference in cmds.file(q=True, reference=True) or []:
-                
-            raw_nodes = cmds.referenceQuery(reference, nodes=True)
-            nodes = set(comparison_name(x) for x in raw_nodes)
-            namespace = raw_nodes[0].rsplit(':', 1)[0]
-                
-            full = all(comparison_name(x) in nodes for x in channels)
-            partial = full or any(comparison_name(x) in nodes for x in channels)
-            
-            references[namespace] = dict(
-                namespace=namespace,
-                reference=reference,
-                full=full,
-                partial=partial,
-            )
-        
-        # Only reselect the previous if it still has atleast a partial match.
-        reselect_previous = references.get(previous.get('namespace'), {}).get('partial')
-        
-        selected = False
-        for namespace, data in sorted(references.iteritems()):
-            
-            # Add to the combobox.
-            label = ' [full]' if data['full'] else ' [partial]' if data['partial'] else ''
-            self._reference_combo.addItem(namespace + label, data)
-            
-            # Select the new reference.
-            if reselect_previous:
-                if previous['reference'] == data['reference']:
-                    self._reference_combo.setCurrentIndex(self._reference_combo.count() - 1)
-            elif not selected:
-                if data['partial'] or data['full']:
-                    selected = True
-                    self._reference_combo.setCurrentIndex(self._reference_combo.count() - 1)
-        
-        self._reference_combo.insertSeparator(1000)
-        self._reference_combo.addItem("Custom")
-        
-    
-    def _on_reference_changed(self, index=None):
-        namespace = str(self._reference_combo.currentText())
-        reference = str(self._reference_combo.itemData(index)) if index is not None else None
-        
-        is_custom = namespace == 'Custom'
-        self._selection_field_pair.setVisible(is_custom)
-        self._set_selection_button_pair.setVisible(is_custom)
-    
-    def getSelection(self):
-        data = self._reference_combo.currentData()
-        if not data:
-            selection = [x.strip() for x in str(self._selection_field.text()).split(',')]
-            selection = [x for x in selection if x]
-            return selection
+        if not cache_path:
+            return []
         else:
-            return cmds.referenceQuery(data['reference'], nodes=True)
-    
-    def setSelection(self, selection):
-        return
-        
-        references = cmds.file(q=True, reference=True)
-        for reference in references:
-            raw_nodes = cmds.referenceQuery(reference, nodes=True)
-            nodes = set(x for x in raw_nodes if cmds.nodeType(x) in ('mesh', 'transform'))
-            if all(x in nodes for x in selection):
-                namespace = raw_nodes[0].rsplit(':', 1)[0]
-                if self._reference_combo.selectWithData('namespace', namespace):
-                    return
-                
-        self._reference_combo.setCurrentIndex(self._reference_combo.count() - 1)
-        self._selection_field.setText(', '.join(selection))
-    
-    def _on_cache_browse(self):
-        file_name = str(QtGui.QFileDialog.getOpenFileName(self, "Select Geocache", os.getcwd(), "Geocaches (*.xml)"))
-        if not file_name:
-            return
+            return cmds.cacheFile(cache_path, q=True, channel=True) or []
+             
 
-        workspace = cmds.workspace(q=True, directory=True)
-        relative = os.path.relpath(file_name, workspace)
-        if relative.startswith('.'):
-            self._cache_field.setText(file_name)
-        else:
-            self._cache_field.setText(relative)
-        
-        self._populate_reference_combo()
-    
-    def _on_set_clicked(self):
-        self._selection_field.setText(', '.join(cmds.ls(selection=True)))
-        
-    def _on_clear_clicked(self):
-        # Set to "Custom", and clear the selection.
-        self._entity_combo.setCurrentIndex(self._entity_combo.count() - 1)
-        self._cache_field.setText('')
-        self._on_entity_changed()
-    
 
-class Dialog(QtGui.QMainWindow):
+class Dialog(QtGui.QDialog):
 
     def __init__(self):
         super(Dialog, self).__init__()
-        self._links = []
+        self._caches = []
         self._init_ui()
         self._populate_existing()
     
@@ -590,23 +493,29 @@ class Dialog(QtGui.QMainWindow):
         self.setWindowTitle('Geocache Import')
         self.setWindowFlags(Qt.Tool)
         self.setMinimumWidth(700)
+        self.setMinimumHeight(550)
+        
+        main_layout = QtGui.QVBoxLayout()
+        self.setLayout(main_layout)
         
         self._scroll_widget = area = QtGui.QScrollArea()
+        main_layout.addWidget(area)
         area.setFrameShape(QtGui.QFrame.NoFrame)
         area.setWidgetResizable(True)
-        self.setCentralWidget(area)
+                
         area_widget = QtGui.QWidget()
-        self._scroll_layout = layout = QtGui.QVBoxLayout()
-        area_widget.setLayout(layout)
         area.setWidget(area_widget)
+        self._scroll_layout = QtGui.QVBoxLayout()
+        area_widget.setLayout(self._scroll_layout)
+        self._scroll_layout.addStretch()
         
         button_layout = QtGui.QHBoxLayout()
-        layout.addLayout(button_layout)
+        main_layout.addLayout(button_layout)
         
         self._link_button = button = QtGui.QPushButton("Add Geocache...")
         button.setMinimumSize(button.sizeHint().expandedTo(QtCore.QSize(100, 0)))
         button_layout.addWidget(button)
-        button.clicked.connect(self._on_link_link)
+        button.clicked.connect(self._on_add_geocache)
         
         button_layout.addStretch()
         
@@ -619,12 +528,11 @@ class Dialog(QtGui.QMainWindow):
         button_layout.addWidget(button)
         button.clicked.connect(self._on_save_clicked)
         
-        layout.addStretch()
     
     def _populate_existing(self):
         
         switches = cmds.ls(type="historySwitch")
-        for switch in switches:
+        for switch in []:#switches:
             cache = None
             selection = []
             for connection in cmds.listConnections(switch, source=True):
@@ -641,26 +549,29 @@ class Dialog(QtGui.QMainWindow):
             link.setCachePath(cache)
             link.setSelection(selection)
             
-            self._links.append(link)
-            self._scroll_layout.insertWidget(self._scroll_layout.count() - 2, link)
+            self._caches.append(link)
+            self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, link)
         
-        if not self._links:
-            self._on_link_link()
+        if not self._caches:
+            self._on_add_geocache()
     
-    def _on_link_link(self):
+    def _on_add_geocache(self):
         link = Geocache()
-        self._links.append(link)
-        self._scroll_layout.insertWidget(self._scroll_layout.count() - 2, link)
+        self._caches.append(link)
+        self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, link)
     
     def _on_save_clicked(self):
         self._on_apply_clicked()
         self.close()
     
     def _on_apply_clicked(self):
+        print 'APPLY'
+        
         original_selection = cmds.ls(sl=True)
-        for link in self._links:
-            cache = link.cachePath()
-            selection = link.getSelection()
+        for link in self._caches:
+            
+            cache_path = link.cachePath()
+            mapping = link.mapping()
             
             if not selection:
                 continue
