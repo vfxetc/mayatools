@@ -132,6 +132,7 @@ class Geometry(QtGui.QWidget):
         label = QtGui.QLabel()
         label.setPixmap(icon.pixmap(16, 16))
         label.setFixedSize(QtCore.QSize(16, 16))
+        label.setToolTip('Everything is OK')
         self._main_layout.addWidget(label)
         
         self._mapping_box = QtGui.QGroupBox("Channel Mapping")
@@ -202,12 +203,14 @@ class Geometry(QtGui.QWidget):
         if self._mapping_box.layout():
             QtGui.QWidget().setLayout(self._mapping_box.layout())
         
-        layout = QtGui.QFormLayout()
+        layout = QtGui.QGridLayout()
         self._mapping_box.setLayout(layout)
+        layout.setColumnStretch(3, 1)
         
         channels = self.parent().channels()
         
-        for node in self.meshes():
+        for row, node in enumerate(sorted(self.meshes())):
+
             combobox = ChannelMapping(node, self)
             combobox.addItem('<None>')
             for channel in channels:
@@ -220,7 +223,21 @@ class Geometry(QtGui.QWidget):
                 combobox.addItem(selected + ' (missing)', dict(channel=selected))
                 combobox.selectWithData('channel', selected)
             
-            layout.addRow(node.split(':')[-1], combobox)
+            icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/tick.png')
+            label = QtGui.QLabel()
+            label.setPixmap(icon.pixmap(12, 12))
+            label.setFixedSize(QtCore.QSize(12, 12))
+            label.setToolTip('Everything is OK')
+                
+            layout.addWidget(QtGui.QLabel(node.split(':')[-1]), row, 0)
+            layout.addWidget(combobox, row, 1)
+            layout.addWidget(label, row, 2)
+            
+        # For some reason I can't always get the layout to update it, so I force
+        # it my adding a hidden label. Please remove this if you can.
+        trigger = QtGui.QLabel('')
+        layout.addWidget(trigger)
+        trigger.hide()
 
 
 class Reference(Geometry):
@@ -262,7 +279,7 @@ class Reference(Geometry):
             ))
     
     def _on_combobox_changed(self, index):
-        pass
+        self._setup_mapping_ui()
     
     def nodes(self):
         reference = self.reference()
@@ -281,6 +298,7 @@ class Selection(Geometry):
     def _setup_ui(self):
                 
         self._field = QtGui.QLineEdit()
+        self._field.editingFinished.connect(self._on_field_changed)
         self._main_layout.addWidget(self._field)
         
         self._update_button = QtGui.QPushButton("Update")
@@ -297,7 +315,11 @@ class Selection(Geometry):
         
     def setSelection(self, selection):
         self._field.setText(', '.join(selection or []))
+        self._setup_mapping_ui()
     
+    def _on_field_changed(self):
+        self._setup_mapping_ui()
+        
     def _on_update(self):
         selection = cmds.ls(sl=True)
         selection = [x for x in selection if cmds.nodeType(x) in ('mesh', 'transform')]
