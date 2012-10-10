@@ -18,8 +18,9 @@ sgfs = SGFS()
 def comparison_name(name):
     name = name.rsplit('|', 1)[-1]
     name = name.rsplit(':', 1)[-1]
-    if name.lower().endswith('deformed'):
-        name = name[:-len('deformed')]
+    for word in ('deformed', 'orig'):
+        if name.lower().endswith(word):
+            name = name[:-len(word)]
     return name
 
 
@@ -35,6 +36,30 @@ def get_transform(input_node, strict=True):
                 raise ValueError('could not find transform for %r' % node)
             return None
         node = relatives[0]
+
+
+def delete_cache(node):
+    print '# Deleting cache:', node
+    mel.eval('deleteCacheFile(3, {"keep", "%s", "geometry"})' % node)
+
+
+def silk(name):
+    return '/home/mboers/Documents/icons/silk/icons/%s.png' % name
+
+def silk_icon(name, size=16):
+    icon = QtGui.QIcon(silk(name))
+    if size != 16:
+        icon = QtGui.QIcon(icon.pixmap(size, size))
+    return icon
+
+def silk_widget(name, size=16, tooltip=None):
+    icon = QtGui.QIcon(silk(name))
+    label = QtGui.QLabel()
+    label.setPixmap(icon.pixmap(size, size))
+    label.setFixedSize(QtCore.QSize(size, size))
+    if tooltip:
+        label.setToolTip(tooltip)
+    return label
 
 
 class ComboBox(QtGui.QComboBox):
@@ -128,12 +153,7 @@ class Geometry(QtGui.QWidget):
         self._main_layout = QtGui.QHBoxLayout()
         self.layout().addLayout(self._main_layout)
         
-        icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/tick.png')
-        label = QtGui.QLabel()
-        label.setPixmap(icon.pixmap(16, 16))
-        label.setFixedSize(QtCore.QSize(16, 16))
-        label.setToolTip('Everything is OK')
-        self._main_layout.addWidget(label)
+        # self._main_layout.addWidget(silk_widget('tick', tooltip='OK'))
         
         self._mapping_box = QtGui.QGroupBox("Channel Mapping")
         self._mapping_box.hide()
@@ -147,16 +167,12 @@ class Geometry(QtGui.QWidget):
         self.layout().setContentsMargins(0, 0, 0, 0)
         self.setContentsMargins(0, 0, 0, 0)
         
-        icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/arrow_switch.png')
-        icon = QtGui.QIcon(icon.pixmap(12, 12))
-        self._remap_button = QtGui.QPushButton(icon, "Remap")
-        self._remap_button.clicked.connect(self._on_remap)
-        self._remap_button.setFixedSize(QtCore.QSize(70, 22))
-        self._main_layout.addWidget(self._remap_button)
+        self._mapping_button = QtGui.QPushButton(silk_icon('arrow_switch', 12), "Edit")
+        self._mapping_button.clicked.connect(self._on_mapping_clicked)
+        self._mapping_button.setFixedSize(QtCore.QSize(60, 22))
+        self._main_layout.addWidget(self._mapping_button)
         
-        icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/delete.png')
-        icon = QtGui.QIcon(icon.pixmap(12, 12))
-        self._delete_button = QtGui.QPushButton(icon, "Delete")
+        self._delete_button = QtGui.QPushButton(silk_icon('delete', 12), "Delete")
         self._delete_button.clicked.connect(self._on_delete)
         self._delete_button.setFixedSize(QtCore.QSize(70, 22))
         self._main_layout.addWidget(self._delete_button)
@@ -164,7 +180,7 @@ class Geometry(QtGui.QWidget):
         # Finally setup the mapping UI. This requires self.meshes() to work.
         self._cache_changed(self.parent())
     
-    def _on_remap(self):
+    def _on_mapping_clicked(self):
         do_open = self._mapping_box and self._mapping_box.isHidden()
         self._mapping_box.setVisible(do_open)
     
@@ -204,7 +220,10 @@ class Geometry(QtGui.QWidget):
                     if comparison_name(mesh) == comparison_name(channel):
                         self._mapping[mesh] = channel
                         break
-            
+    
+    def _node_display_name(self, node):
+        return node.rsplit('|', 1)[-1]
+    
     def _setup_mapping_ui(self):
         
         # Easiest way to destroy a layout and all of it's children: transfer
@@ -213,34 +232,41 @@ class Geometry(QtGui.QWidget):
             QtGui.QWidget().setLayout(self._mapping_box.layout())
         
         layout = QtGui.QGridLayout()
-        self._mapping_box.setLayout(layout)
         layout.setColumnStretch(3, 1)
+        layout.setVerticalSpacing(1)
+        self._mapping_box.setLayout(layout)
         
         channels = self.parent().channels()
         
         for row, node in enumerate(sorted(self.meshes())):
 
             combobox = ChannelMapping(node, self)
+            combobox.setMaximumHeight(20)
             combobox.addItem('<None>')
             for channel in channels:
-                combobox.addItem(channel, dict(channel=channel))
+                if comparison_name(channel) == comparison_name(node):
+                    combobox.addItem(silk_icon('asterisk_orange', 10), channel, dict(channel=channel))
+                else:
+                    combobox.addItem(channel, dict(channel=channel))
+            
+            cautions = []
             
             # Reselect the old mapping, and add a "missing" item if we can't
             # find it.
             selected = self._mapping.get(node)
             if not combobox.selectWithData('channel', self._mapping.get(node)) and selected:
+                cautions.append('Channel "%s" does not exist' % selected)
                 combobox.addItem(selected + ' (missing)', dict(channel=selected))
                 combobox.selectWithData('channel', selected)
             
-            icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/tick.png')
-            label = QtGui.QLabel()
-            label.setPixmap(icon.pixmap(12, 12))
-            label.setFixedSize(QtCore.QSize(12, 12))
-            label.setToolTip('Everything is OK')
-                
-            layout.addWidget(QtGui.QLabel(node.split(':')[-1]), row, 0)
+            layout.addWidget(QtGui.QLabel(self._node_display_name(node)), row, 0, alignment=Qt.AlignRight)
             layout.addWidget(combobox, row, 1)
-            layout.addWidget(label, row, 2)
+            
+            if cautions:
+                icon = silk_widget('cross', 12, '; '.join(cautions))
+            else:
+                icon = silk_widget('tick', 12, 'OK')
+            layout.addWidget(icon, row, 2)
             
         # For some reason I can't always get the layout to update it, so I force
         # it my adding a hidden label. Please remove this if you can.
@@ -276,13 +302,7 @@ class Reference(Geometry):
     def _populate_combobox(self):
         for reference in cmds.file(q=True, reference=True) or []:
             namespace = cmds.referenceQuery(reference, namespace=True).strip(':')
-            icon = QtGui.QIcon('''
-                /home/mboers/Documents/icons/silk/icons/error.png
-                /home/mboers/Documents/icons/silk/icons/accept.png
-                /home/mboers/Documents/icons/silk/icons/delete.png
-            '''.strip().split()[self._combobox.count() % 3])
-            icon = QtGui.QIcon(icon.pixmap(10, 10))
-            self._combobox.addItem(icon, '%s: %s' % (namespace, os.path.basename(reference)), dict(
+            self._combobox.addItem('%s: %s' % (namespace, os.path.basename(reference)), dict(
                 namespace=namespace,
                 reference=reference,
             ))
@@ -293,9 +313,12 @@ class Reference(Geometry):
     def nodes(self):
         reference = self.reference()
         if reference:
-            return cmds.referenceQuery(reference, nodes=True) or []
+            return cmds.referenceQuery(reference, nodes=True, dagPath=True) or []
         else:
             return {}
+    
+    def _node_display_name(self, node):
+        return node.rsplit(':', 1)[-1]
 
 
 class Selection(Geometry):
@@ -420,12 +443,6 @@ class Geocache(QtGui.QGroupBox):
         self._link_selection_button.clicked.connect(self._on_add_selection_link)
         self._link_selection_button.setMaximumHeight(22)
         button_layout.addWidget(self._link_selection_button)
-        
-        icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/cog.png')
-        icon = QtGui.QIcon(icon.pixmap(12, 12))
-        self._edit_button = QtGui.QPushButton(icon, "Edit Mapping")
-        self._edit_button.setMaximumHeight(22)
-        button_layout.addWidget(self._edit_button)
         
         button_layout.addStretch()
         
@@ -701,7 +718,7 @@ class Dialog(QtGui.QDialog):
     def _init_ui(self):
         self.setWindowTitle('Geocache Import')
         self.setWindowFlags(Qt.Tool)
-        self.setMinimumWidth(700)
+        self.setMinimumWidth(900)
         self.setMinimumHeight(550)
         
         main_layout = QtGui.QVBoxLayout()
@@ -746,16 +763,23 @@ class Dialog(QtGui.QDialog):
             cache_path = cmds.cacheFile(cache_node, q=True, fileName=True)[0]
             mapping = mappings.setdefault(cache_path, {})
             
-            # Identify what it is connected to.
+            ## Identify what it is connected to.
+            
             channel = cmds.getAttr(cache_node + '.channel[0]')
-            switch = cmds.listConnections(cache_node + '.outCacheData[0]')[0]
+            
+            switch = cmds.listConnections(cache_node + '.outCacheData[0]')
+            if not switch:
+                cmds.warning('Could not find switch for %r' % cache_node)
+                continue
+            switch = switch[0]
             switch_type = cmds.nodeType(switch)
             if switch_type != 'historySwitch':
                 cmds.warning('Unknown cache node layout; found %s %r' % (switch_type, switch))
                 continue
+            
             transform = cmds.listConnections(switch + '.outputGeometry[0]')[0]
             shapes = cmds.listRelatives(transform, children=True, shapes=True)
-            if len(shapes) == 2 and shapes[1].startswith(shapes[0]) and shapes[1][len(shapes[0]):] in ('Deformed', 'Orig'):
+            if len(shapes) == 2 and comparison_name(shapes[0]) == comparison_name(shapes[1]):
                 shapes = [shapes[0]]
             if len(shapes) != 1:
                 cmds.warning('Could not identify single shape connected to cache; found %r' % shapes)
@@ -765,7 +789,9 @@ class Dialog(QtGui.QDialog):
             mapping[shape] = channel
         
         for cache_path, mapping in sorted(mappings.iteritems()):
-            
+            if not mapping:
+                continue
+        
             geocache = Geocache()
             geocache.setCachePath(cache_path)
             geocache.setMapping(mapping)
@@ -812,25 +838,31 @@ class Dialog(QtGui.QDialog):
                 
                 # Identify what it is connected to.
                 channel = cmds.getAttr(cache_node + '.channel[0]')
-                switch = cmds.listConnections(cache_node + '.outCacheData[0]')[0]
+                switch = cmds.listConnections(cache_node + '.outCacheData[0]')
+                if not switch:
+                    cmds.warning('Could not find switch for %r' % cache_node)
+                    delete_cache(cache_node)
+                    continue
+                switch = switch[0]
+                
                 switch_type = cmds.nodeType(switch)
                 if switch_type != 'historySwitch':
                     cmds.warning('Unknown cache node layout; found %s %r' % (switch_type, switch))
-                    # This will fall through to deleting it.
-                else:
-                    node = cmds.listConnections(switch + '.outputGeometry[0]')[0]
-                    transform = get_transform(node)
+                    delete_cache(cache_node)
+                    continue
                 
-                    # Leave it alone (and remove it from the mapping) if it is
-                    # already setup.
-                    if mapping.get(transforms.get(transform)) == channel:
-                        print '# Existing cache OK: %r to %r via %r' % (cache_node, transform, channel)
-                        mapping.pop(transforms[transform])
-                        continue
+                node = cmds.listConnections(switch + '.outputGeometry[0]')[0]
+                transform = get_transform(node)
+                
+                # Leave it alone (and remove it from the mapping) if it is
+                # already setup.
+                if mapping.get(transforms.get(transform)) == channel:
+                    print '# Existing cache OK: %r to %r via %r' % (cache_node, transform, channel)
+                    mapping.pop(transforms[transform])
+                    continue
             
                 # Delete existing cache nodes.
-                print '# Deleting cache:', cache_node
-                mel.eval('deleteCacheFile(3, {"keep", "%s", "geometry"})' % cache_node)
+                delete_cache(cache_node)
             
             # Connect new caches.
             for mesh, channel in mapping.iteritems():
