@@ -748,15 +748,20 @@ class Dialog(QtGui.QDialog):
                 # Identify what it is connected to.
                 channel = cmds.getAttr(cache_node + '.channel[0]')
                 switch = cmds.listConnections(cache_node + '.outCacheData[0]')[0]
-                node = cmds.listConnections(switch + '.outputGeometry[0]')[0]
-                transform = get_transform(node)
+                switch_type = cmds.nodeType(switch)
+                if switch_type != 'historySwitch':
+                    cmds.warning('Unknown cache node layout; found %s %r' % (switch_type, switch))
+                    # This will fall through to deleting it.
+                else:
+                    node = cmds.listConnections(switch + '.outputGeometry[0]')[0]
+                    transform = get_transform(node)
                 
-                # Leave it alone (and remove it from the mapping) if it is
-                # already setup.
-                if mapping.get(transforms.get(transform)) == channel:
-                    print '# Existing cache OK: %r to %r via %r' % (cache_node, transform, channel)
-                    mapping.pop(transforms[transform])
-                    continue
+                    # Leave it alone (and remove it from the mapping) if it is
+                    # already setup.
+                    if mapping.get(transforms.get(transform)) == channel:
+                        print '# Existing cache OK: %r to %r via %r' % (cache_node, transform, channel)
+                        mapping.pop(transforms[transform])
+                        continue
             
                 # Delete existing cache nodes.
                 print '# Deleting cache:', cache_node
