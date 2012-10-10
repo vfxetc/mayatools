@@ -168,7 +168,11 @@ class Geometry(QtGui.QWidget):
         self._mapping_box.setVisible(do_open)
     
     def _on_delete(self):
-        # Remove our meshes
+        
+        # Remove ourselves from our parent.
+        self.parent()._geometry.remove(self)
+        
+        # Remove the widget.
         self.hide()
         self.destroy()
     
@@ -731,11 +735,13 @@ class Dialog(QtGui.QDialog):
         for geocache in self._geocaches:
             
             cache_path = geocache.cachePath()
-            mapping = geocache.mapping()
+            if not cache_path:
+                continue
             
-            # We want to be mapping transforms, not shapes, and the MEL commands
-            # will find the shape that we want to be connecting to.
-            mapping = dict((get_transform(x), c) for x, c in mapping.iteritems())
+            mapping = geocache.mapping()
+            transforms = dict((get_transform(mesh), mesh) for mesh in mapping)
+            if len(mapping) != len(transforms):
+                cmds.warning('Meshes and transforms are not 1 to 1.')
             
             for cache_node in path_to_cache_nodes.get(cache_path, []):
                 
@@ -747,9 +753,9 @@ class Dialog(QtGui.QDialog):
                 
                 # Leave it alone (and remove it from the mapping) if it is
                 # already setup.
-                if mapping.get(transform) == channel:
+                if mapping.get(transforms.get(transform)) == channel:
                     print '# Existing cache OK: %r to %r via %r' % (cache_node, transform, channel)
-                    del mapping[transform]
+                    mapping.pop(transforms[transform])
                     continue
             
                 # Delete existing cache nodes.
@@ -757,10 +763,10 @@ class Dialog(QtGui.QDialog):
                 mel.eval('deleteCacheFile(3, {"keep", "%s", "geometry"})' % cache_node)
             
             # Connect new caches.
-            for transform, channel in mapping.iteritems():
-                print '# Connecting: %r to %r' % (transform, channel)
+            for mesh, channel in mapping.iteritems():
+                print '# Connecting: %r to %r' % (mesh, channel)
                 mel.eval('doImportCacheFile("%s", "Best Guess", {"%s"}, {"%s"})' % (
-                    cache_path, transform, channel,
+                    cache_path, get_transform(mesh), channel,
                 ))
         
         # Restore selection.
