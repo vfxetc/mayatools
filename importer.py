@@ -78,25 +78,104 @@ class Labeled(QtGui.QVBoxLayout):
         self._widget.setVisible(visible)
 
 
-class Link(QtGui.QGroupBox):
+class Geometry(QtGui.QWidget):
+
+    def __init__(self):
+        super(Geometry, self).__init__()
+        self.setLayout(QtGui.QHBoxLayout())
+        self._setup_ui()
+
+    def _setup_ui(self):
+        
+        self.layout().setContentsMargins(0, 0, 0, 0)
+        self.setContentsMargins(0, 0, 0, 0)
+        
+        self._edit_button = QtGui.QPushButton("Edit")
+        self._edit_button.setFixedSize(QtCore.QSize(60, 20))
+        self.layout().addWidget(self._edit_button)
+        
+        self._delete_button = QtGui.QPushButton("Delete")
+        self._delete_button.clicked.connect(self._on_delete)
+        self._delete_button.setFixedSize(QtCore.QSize(60, 20))
+        self.layout().addWidget(self._delete_button)
+    
+    def _on_delete(self):
+        self.hide()
+        self.destroy()
+
+
+class Reference(Geometry):
+    
+    def __init__(self, reference=None):
+        super(Reference, self).__init__()
+        if reference is not None:
+            self.setReference(reference)
+    
+    def _setup_ui(self):
+        
+        self._combobox = ComboBox()
+        self._populate_combobox()
+        self.layout().addWidget(self._combobox)
+        
+        super(Reference, self)._setup_ui()
+        
+    
+    def setReference(self, reference):
+        self._combobox.selectWithData('reference', reference) or self._combobox.addItem(reference)
+    
+    def _populate_combobox(self):
+        for reference in cmds.file(q=True, reference=True) or []:
+            namespace = cmds.referenceQuery(reference, namespace=True).strip(':')
+            self._combobox.addItem('[%s]: %s' % (namespace, os.path.basename(reference)), dict(
+                namespace=namespace,
+                reference=reference,
+            ))
+            #raw_nodes = cmds.referenceQuery(reference, nodes=True)
+
+
+class Selection(Geometry):
+    
+    def __init__(self, selection=None):
+        super(Selection, self).__init__()
+        self.setSelection(selection)
+    
+    def _setup_ui(self):
+                
+        self._field = QtGui.QLineEdit()
+        self.layout().addWidget(self._field)
+        
+        self._update_button = QtGui.QPushButton("Update")
+        self._update_button.clicked.connect(self._on_update)
+        self._update_button.setFixedSize(QtCore.QSize(60, 20))
+        self.layout().addWidget(self._update_button)
+        
+        super(Selection, self)._setup_ui()
+    
+    def setSelection(self, selection):
+        self._field.setText(', '.join(selection or []))
+    
+    def _on_update(self):
+        selection = cmds.ls(sl=True)
+        selection = [x for x in selection if cmds.nodeType(x) in ('mesh', 'transform')]
+        self.setSelection(selection)
+
+
+class Geocache(QtGui.QGroupBox):
     
     def __init__(self):
-        super(Link, self).__init__()
+        super(Geocache, self).__init__()
         self._setup_ui()
     
     def _setup_ui(self):
         
         # Lots of layouts...
-        self.setLayout(QtGui.QHBoxLayout())
-        self._main_layout = QtGui.QVBoxLayout()
-        self.layout().addLayout(self._main_layout)
-        self._cache_layout = QtGui.QHBoxLayout()
-        self._main_layout.addLayout(self._cache_layout)
-        self._reference_layout = QtGui.QHBoxLayout()
-        self._main_layout.addLayout(self._reference_layout)
+        self.setLayout(QtGui.QVBoxLayout())
         
         ## Cache widgets
 
+        self._cache_layout = QtGui.QHBoxLayout()
+        self.layout().addLayout(self._cache_layout)
+        
         self._entity_combo = ComboBox()
         self._populate_entity_combo()        
         self._entity_combo.activated.connect(self._on_entity_changed)
@@ -129,36 +208,38 @@ class Link(QtGui.QGroupBox):
         self._cache_browse_button_pair = Labeled("", self._cache_browse_button)
         self._cache_layout.addLayout(self._cache_browse_button_pair)
         
-        self._clear_button = QtGui.QPushButton('Clear')
-        self._clear_button.setMaximumSize(QtCore.QSize(50, 20))
-        self._clear_button.clicked.connect(self._on_clear_clicked)
-        self._clear_button_pair = Labeled("", self._clear_button)
-        self._cache_layout.addLayout(self._clear_button_pair)
-        
         self._on_entity_changed()
         
         ## Reference widgets
+                
+        #self._geometry_box = QtGui.QWidget()#("Geometry and References")
+        #self.layout().addWidget(self._geometry_box)
+        self.layout().addWidget(QtGui.QLabel("Geometry & References"))
         
-        self._reference_combo = ComboBox()
-        self._populate_reference_combo()
-        self._reference_combo.activated.connect(self._on_reference_changed)
-        self._reference_combo_pair = Labeled("Reference", self._reference_combo)
-        self._reference_layout.addLayout(self._reference_combo_pair)
+        self._geometry_layout = QtGui.QVBoxLayout()
+        self.layout().addLayout(self._geometry_layout)
         
-        self._selection_field = QtGui.QLineEdit()
-        self._selection_field_pair = Labeled("Geometry", self._selection_field)
-        self._reference_layout.addLayout(self._selection_field_pair)
+        button_layout = QtGui.QHBoxLayout()
+        self.layout().addLayout(button_layout)
         
-        self._set_selection_button = QtGui.QPushButton("Set to Selection")
-        self._set_selection_button.setMaximumSize(
-            self._set_selection_button.sizeHint().boundedTo(QtCore.QSize(1000, 20))
-        )
-        self._set_selection_button.clicked.connect(self._on_set_clicked)
-        self._set_selection_button_pair = Labeled("", self._set_selection_button)
-        self._reference_layout.addLayout(self._set_selection_button_pair)
+        self._link_reference_button = QtGui.QPushButton("Link Reference")
+        self._link_reference_button.clicked.connect(self._on_link_reference)
+        button_layout.addWidget(self._link_reference_button)
         
+        self._link_selection_button = QtGui.QPushButton("Link Selection")
+        self._link_selection_button.clicked.connect(self._on_link_selection)
+        button_layout.addWidget(self._link_selection_button)
         
-        self._on_reference_changed()
+        button_layout.addStretch()
+    
+    def _on_link_reference(self):
+        box = Reference()
+        self._geometry_layout.addWidget(box)
+    
+    def _on_link_selection(self):
+        box = Selection()
+        box._on_update()
+        self._geometry_layout.addWidget(box)
     
     def _populate_entity_combo(self):
         print '# _populate_entity_combo'
@@ -231,7 +312,8 @@ class Link(QtGui.QGroupBox):
         self._object_pair.setVisible(not is_custom)
         
         if is_custom:
-            self._populate_reference_combo()
+            pass
+            # self._populate_reference_combo()
         else:
             self._populate_step_combo()
             self._on_step_changed()
@@ -294,7 +376,8 @@ class Link(QtGui.QGroupBox):
             
     
     def _on_object_changed(self, index=None):
-        self._populate_reference_combo()
+        pass
+        # self._populate_reference_combo()
     
     def cachePath(self):
         workspace = cmds.workspace(q=True, directory=True)
@@ -432,7 +515,8 @@ class Link(QtGui.QGroupBox):
             return cmds.referenceQuery(data['reference'], nodes=True)
     
     def setSelection(self, selection):
-
+        return
+        
         references = cmds.file(q=True, reference=True)
         for reference in references:
             raw_nodes = cmds.referenceQuery(reference, nodes=True)
@@ -479,6 +563,7 @@ class Dialog(QtGui.QMainWindow):
     
     def _init_ui(self):
         self.setWindowTitle('Geocache Import')
+        self.setWindowFlags(Qt.Tool)
         self.setMinimumWidth(700)
         
         self._scroll_widget = area = QtGui.QScrollArea()
@@ -493,10 +578,10 @@ class Dialog(QtGui.QMainWindow):
         button_layout = QtGui.QHBoxLayout()
         layout.addLayout(button_layout)
         
-        self._add_button = button = QtGui.QPushButton("Add Link...")
+        self._link_button = button = QtGui.QPushButton("Add Geocache...")
         button.setMinimumSize(button.sizeHint().expandedTo(QtCore.QSize(100, 0)))
         button_layout.addWidget(button)
-        button.clicked.connect(self._on_add_link)
+        button.clicked.connect(self._on_link_link)
         
         button_layout.addStretch()
         
@@ -527,7 +612,7 @@ class Dialog(QtGui.QMainWindow):
             if not cache or not selection:
                 continue
             
-            link = Link()
+            link = Geocache()
             link.setCachePath(cache)
             link.setSelection(selection)
             
@@ -535,10 +620,10 @@ class Dialog(QtGui.QMainWindow):
             self._scroll_layout.insertWidget(self._scroll_layout.count() - 2, link)
         
         if not self._links:
-            self._on_add_link()
+            self._on_link_link()
     
-    def _on_add_link(self):
-        link = Link()
+    def _on_link_link(self):
+        link = Geocache()
         self._links.append(link)
         self._scroll_layout.insertWidget(self._scroll_layout.count() - 2, link)
     
