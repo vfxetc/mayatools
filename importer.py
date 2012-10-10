@@ -90,18 +90,23 @@ class Geometry(QtGui.QWidget):
         self.layout().setContentsMargins(0, 0, 0, 0)
         self.setContentsMargins(0, 0, 0, 0)
         
-        self._edit_button = QtGui.QPushButton("Edit")
-        self._edit_button.setFixedSize(QtCore.QSize(60, 20))
-        self.layout().addWidget(self._edit_button)
-        
-        self._delete_button = QtGui.QPushButton("Delete")
+        icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/delete.png')
+        icon = QtGui.QIcon(icon.pixmap(12, 12))
+        self._delete_button = QtGui.QPushButton(icon, "Delete")
         self._delete_button.clicked.connect(self._on_delete)
-        self._delete_button.setFixedSize(QtCore.QSize(60, 20))
+        self._delete_button.setFixedSize(QtCore.QSize(70, 22))
         self.layout().addWidget(self._delete_button)
     
     def _on_delete(self):
         self.hide()
         self.destroy()
+
+
+class RefDelegate(QtGui.QItemDelegate):
+    
+    def paint(self, painter, option, index):
+        print 'paint', index.row()
+        super(RefDelegate, self).paint(painter, option, index)
 
 
 class Reference(Geometry):
@@ -114,6 +119,7 @@ class Reference(Geometry):
     def _setup_ui(self):
         
         self._combobox = ComboBox()
+        self._combobox.setItemDelegate(RefDelegate())
         self._populate_combobox()
         self.layout().addWidget(self._combobox)
         
@@ -126,7 +132,13 @@ class Reference(Geometry):
     def _populate_combobox(self):
         for reference in cmds.file(q=True, reference=True) or []:
             namespace = cmds.referenceQuery(reference, namespace=True).strip(':')
-            self._combobox.addItem('[%s]: %s' % (namespace, os.path.basename(reference)), dict(
+            icon = QtGui.QIcon('''
+                /home/mboers/Documents/icons/silk/icons/error.png
+                /home/mboers/Documents/icons/silk/icons/accept.png
+                /home/mboers/Documents/icons/silk/icons/delete.png
+            '''.strip().split()[self._combobox.count() % 3])
+            icon = QtGui.QIcon(icon.pixmap(10, 10))
+            self._combobox.addItem(icon, '%s: %s' % (namespace, os.path.basename(reference)), dict(
                 namespace=namespace,
                 reference=reference,
             ))
@@ -146,7 +158,7 @@ class Selection(Geometry):
         
         self._update_button = QtGui.QPushButton("Update")
         self._update_button.clicked.connect(self._on_update)
-        self._update_button.setFixedSize(QtCore.QSize(60, 20))
+        self._update_button.setFixedSize(QtCore.QSize(60, 22))
         self.layout().addWidget(self._update_button)
         
         super(Selection, self)._setup_ui()
@@ -222,16 +234,29 @@ class Geocache(QtGui.QGroupBox):
         button_layout = QtGui.QHBoxLayout()
         self.layout().addLayout(button_layout)
         
-        self._link_reference_button = QtGui.QPushButton("Link Reference")
+        icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/link_add.png')
+        icon = QtGui.QIcon(icon.pixmap(12, 12))
+        self._link_reference_button = QtGui.QPushButton(icon, "Add Reference Link")
         self._link_reference_button.clicked.connect(self._on_link_reference)
+        self._link_reference_button.setMaximumHeight(22)
         button_layout.addWidget(self._link_reference_button)
         
-        self._link_selection_button = QtGui.QPushButton("Link Selection")
+        icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/link_add.png')
+        icon = QtGui.QIcon(icon.pixmap(12, 12))
+        self._link_selection_button = QtGui.QPushButton(icon, "Add Selection Link")
         self._link_selection_button.clicked.connect(self._on_link_selection)
+        self._link_selection_button.setMaximumHeight(22)
         button_layout.addWidget(self._link_selection_button)
         
+        
+        icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/cog.png')
+        icon = QtGui.QIcon(icon.pixmap(12, 12))
+        self._edit_button = QtGui.QPushButton(icon, "Edit Mapping")
+        self._edit_button.setMaximumHeight(22)
+        button_layout.addWidget(self._edit_button)
+        
         button_layout.addStretch()
-    
+        
     def _on_link_reference(self):
         box = Reference()
         self._geometry_layout.addWidget(box)
