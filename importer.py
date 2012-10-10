@@ -23,6 +23,20 @@ def comparison_name(name):
     return name
 
 
+def get_transform(input_node, strict=True):
+    node = input_node
+    while True:
+        type_ = cmds.nodeType(node)
+        if type_ == 'transform':
+            return node
+        relatives = cmds.listRelatives(node, parent=True)
+        if not relatives:
+            if strict:
+                raise ValueError('could not find transform for %r' % node)
+            return None
+        node = relatives[0]
+
+
 class ComboBox(QtGui.QComboBox):
     
     def itemData(self, index):
@@ -78,52 +92,153 @@ class Labeled(QtGui.QVBoxLayout):
         self._widget.setVisible(visible)
 
 
+class ChannelMapping(ComboBox):
+
+    def __init__(self, node, geometry):
+        super(ChannelMapping, self).__init__()
+        self._node = node
+        self._geometry = geometry
+        self.activated.connect(self._on_activated)
+    
+    def _on_activated(self, index):
+        data = self.currentData() or {}
+        channel = data.get('channel')
+        if channel is None:
+            self._geometry._mapping.pop(self._node, None)
+        else:
+            self._geometry._mapping[self._node] = channel
+
+
 class Geometry(QtGui.QWidget):
 
-    def __init__(self):
-        super(Geometry, self).__init__()
-        self.setLayout(QtGui.QHBoxLayout())
+    def __init__(self, parent=None):
+        super(Geometry, self).__init__(parent)
+        
+        #: Map mesh names to channels.
+        self._mapping = {}
+        
+        self._setup_pre_ui()
         self._setup_ui()
+        self._setup_post_ui()
+    
+    def _setup_pre_ui(self):
 
+        self.setLayout(QtGui.QVBoxLayout())
+        
+        self._main_layout = QtGui.QHBoxLayout()
+        self.layout().addLayout(self._main_layout)
+        
+        icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/tick.png')
+        label = QtGui.QLabel()
+        label.setPixmap(icon.pixmap(16, 16))
+        label.setFixedSize(QtCore.QSize(16, 16))
+        self._main_layout.addWidget(label)
+        
+        self._mapping_box = QtGui.QGroupBox("Channel Mapping")
+        self._mapping_box.hide()
+        self.layout().addWidget(self._mapping_box)
+        
     def _setup_ui(self):
+        pass
+    
+    def _setup_post_ui(self):
         
         self.layout().setContentsMargins(0, 0, 0, 0)
         self.setContentsMargins(0, 0, 0, 0)
+        
+        icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/arrow_switch.png')
+        icon = QtGui.QIcon(icon.pixmap(12, 12))
+        self._remap_button = QtGui.QPushButton(icon, "Remap")
+        self._remap_button.clicked.connect(self._on_remap)
+        self._remap_button.setFixedSize(QtCore.QSize(70, 22))
+        self._main_layout.addWidget(self._remap_button)
         
         icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/delete.png')
         icon = QtGui.QIcon(icon.pixmap(12, 12))
         self._delete_button = QtGui.QPushButton(icon, "Delete")
         self._delete_button.clicked.connect(self._on_delete)
         self._delete_button.setFixedSize(QtCore.QSize(70, 22))
-        self.layout().addWidget(self._delete_button)
+        self._main_layout.addWidget(self._delete_button)
+        
+        # Finally setup the mapping UI. This requires self.meshes() to work.
+        self._cache_changed(self.parent())
+    
+    def _on_remap(self):
+        do_open = self._mapping_box and self._mapping_box.isHidden()
+        self._mapping_box.setVisible(do_open)
     
     def _on_delete(self):
+        # Remove our meshes
         self.hide()
         self.destroy()
-
-class RefDelegate(QtGui.QItemDelegate):
     
-    def paint(self, painter, option, index):
-        print 'paint', index.row()
-        super(RefDelegate, self).paint(painter, option, index)
+    def mapping(self):
+        return self._mapping
+        
+    def meshes(self):
+        return [x for x in self.nodes() if cmds.nodeType(x) == 'mesh']
+    
+    def _cache_changed(self, geocache):
+        self._channels_changed(geocache.channels())
+        self._setup_mapping_ui()
+    
+    def _channels_changed(self, channels):
+        # Automatically select exact matches.
+        for mesh in self.meshes():
+            if self._mapping.get(mesh) is None:
+                for channel in channels:
+                    if comparison_name(mesh) == comparison_name(channel):
+                        self._mapping[mesh] = channel
+                        break
+            
+    def _setup_mapping_ui(self):
+        
+        # Easiest way to destroy a layout and all of it's children: transfer
+        # the layout to another widget that is immediately garbage collected.
+        if self._mapping_box.layout():
+            QtGui.QWidget().setLayout(self._mapping_box.layout())
+        
+        layout = QtGui.QFormLayout()
+        self._mapping_box.setLayout(layout)
+        
+        channels = self.parent().channels()
+        
+        for node in self.meshes():
+            combobox = ChannelMapping(node, self)
+            combobox.addItem('<None>')
+            for channel in channels:
+                combobox.addItem(channel, dict(channel=channel))
+            
+            # Reselect the old mapping, and add a "missing" item if we can't
+            # find it.
+            selected = self._mapping.get(node)
+            if not combobox.selectWithData('channel', self._mapping.get(node)) and selected:
+                combobox.addItem(selected + ' (missing)', dict(channel=selected))
+                combobox.selectWithData('channel', selected)
+            
+            layout.addRow(node.split(':')[-1], combobox)
 
 
 class Reference(Geometry):
     
-    def __init__(self, reference=None):
-        super(Reference, self).__init__()
+    def __init__(self, reference=None, parent=None):
+        super(Reference, self).__init__(parent)
         if reference is not None:
             self.setReference(reference)
     
     def _setup_ui(self):
         
         self._combobox = ComboBox()
-        self._combobox.setItemDelegate(RefDelegate())
         self._populate_combobox()
-        self.layout().addWidget(self._combobox)
+        self._main_layout.addWidget(self._combobox)
         
         super(Reference, self)._setup_ui()
         
+        self._combobox.currentIndexChanged.connect(self._on_combobox_changed)
+        self._on_combobox_changed(0)
+    
+    def reference(self):
+        return (self._combobox.currentData() or {}).get('reference')
     
     def setReference(self, reference):
         self._combobox.selectWithData('reference', reference) or self._combobox.addItem(reference)
@@ -141,27 +256,41 @@ class Reference(Geometry):
                 namespace=namespace,
                 reference=reference,
             ))
-            #raw_nodes = cmds.referenceQuery(reference, nodes=True)
+    
+    def _on_combobox_changed(self, index):
+        pass
+    
+    def nodes(self):
+        reference = self.reference()
+        if reference:
+            return cmds.referenceQuery(reference, nodes=True) or []
+        else:
+            return {}
 
 
 class Selection(Geometry):
     
-    def __init__(self, selection=None):
-        super(Selection, self).__init__()
+    def __init__(self, selection=None, parent=None):
+        super(Selection, self).__init__(parent)
         self.setSelection(selection)
     
     def _setup_ui(self):
                 
         self._field = QtGui.QLineEdit()
-        self.layout().addWidget(self._field)
+        self._main_layout.addWidget(self._field)
         
         self._update_button = QtGui.QPushButton("Update")
         self._update_button.clicked.connect(self._on_update)
         self._update_button.setFixedSize(QtCore.QSize(60, 22))
-        self.layout().addWidget(self._update_button)
+        self._main_layout.addWidget(self._update_button)
         
         super(Selection, self)._setup_ui()
     
+    def selection(self):
+        selection = [x.strip() for x in str(self._field.text()).split(',')]
+        selection = [x for x in selection if x]
+        return selection
+        
     def setSelection(self, selection):
         self._field.setText(', '.join(selection or []))
     
@@ -169,13 +298,22 @@ class Selection(Geometry):
         selection = cmds.ls(sl=True)
         selection = [x for x in selection if cmds.nodeType(x) in ('mesh', 'transform')]
         self.setSelection(selection)
+    
+    def nodes(self):
+        return self.selection()
 
 
 class Geocache(QtGui.QGroupBox):
     
     def __init__(self):
         super(Geocache, self).__init__()
+        
+        #: Mapping of shape nodes to channels.
         self._mapping = {}
+        
+        #: Geometry objects.
+        self._geometry = []
+        
         self._setup_ui()
     
     def _setup_ui(self):
@@ -229,20 +367,22 @@ class Geocache(QtGui.QGroupBox):
         self._geometry_layout = QtGui.QVBoxLayout()
         self.layout().addLayout(self._geometry_layout)
         
+        ## Buttons.
+        
         button_layout = QtGui.QHBoxLayout()
         self.layout().addLayout(button_layout)
         
         icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/link_add.png')
         icon = QtGui.QIcon(icon.pixmap(12, 12))
         self._link_reference_button = QtGui.QPushButton(icon, "Add Reference Link")
-        self._link_reference_button.clicked.connect(self._on_link_reference)
+        self._link_reference_button.clicked.connect(self._on_add_reference_link)
         self._link_reference_button.setMaximumHeight(22)
         button_layout.addWidget(self._link_reference_button)
         
         icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/link_add.png')
         icon = QtGui.QIcon(icon.pixmap(12, 12))
         self._link_selection_button = QtGui.QPushButton(icon, "Add Selection Link")
-        self._link_selection_button.clicked.connect(self._on_link_selection)
+        self._link_selection_button.clicked.connect(self._on_add_selection_link)
         self._link_selection_button.setMaximumHeight(22)
         button_layout.addWidget(self._link_selection_button)
         
@@ -254,14 +394,20 @@ class Geocache(QtGui.QGroupBox):
         
         button_layout.addStretch()
         
-    def _on_link_reference(self):
-        box = Reference()
-        self._geometry_layout.addWidget(box)
+        # Mappings.
+        self._mapping_layout = QtGui.QFormLayout()
+        self.layout().addLayout(self._mapping_layout)
+        
+    def _on_add_reference_link(self):
+        geo = Reference(parent=self)
+        self._geometry.append(geo)
+        self._geometry_layout.addWidget(geo)
     
-    def _on_link_selection(self):
-        box = Selection()
-        box._on_update()
-        self._geometry_layout.addWidget(box)
+    def _on_add_selection_link(self):
+        geo = Selection(parent=self)
+        geo._on_update()
+        self._geometry.append(geo)
+        self._geometry_layout.addWidget(geo)
     
     def _populate_entity_combo(self):
         print '# _populate_entity_combo'
@@ -304,7 +450,6 @@ class Geocache(QtGui.QGroupBox):
                 entity=entity
             ))
         self._entity_combo.addItem('Custom')
-        
         
     def _populate_step_combo(self):
         print '# _populate_step_combo'
@@ -397,7 +542,8 @@ class Geocache(QtGui.QGroupBox):
             self._on_object_changed()
     
     def _on_object_changed(self, index=None):
-        pass
+        for geo in self._geometry:
+            geo._cache_changed(self)
 
     def _on_cache_browse(self):
         file_name = str(QtGui.QFileDialog.getOpenFileName(self, "Select Geocache", os.getcwd(), "Geocaches (*.xml)"))
@@ -477,15 +623,21 @@ class Geocache(QtGui.QGroupBox):
         if not cache_path:
             return []
         else:
-            return cmds.cacheFile(cache_path, q=True, channel=True) or []
-             
+            return cmds.cacheFile(q=True, fileName=cache_path, channelName=True) or []
+    
+    def mapping(self):
+        channels = set(self.channels())
+        mapping = dict()
+        for geo in self._geometry:
+            mapping.update((k, v) for k, v in geo.mapping().iteritems() if v in channels)
+        return mapping
 
 
 class Dialog(QtGui.QDialog):
 
     def __init__(self):
         super(Dialog, self).__init__()
-        self._caches = []
+        self._geocaches = []
         self._init_ui()
         self._populate_existing()
     
@@ -545,20 +697,20 @@ class Dialog(QtGui.QDialog):
             if not cache or not selection:
                 continue
             
-            link = Geocache()
-            link.setCachePath(cache)
-            link.setSelection(selection)
+            geocache = Geocache()
+            geocache.setCachePath(cache)
+            geocache.setSelection(selection)
             
-            self._caches.append(link)
-            self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, link)
+            self._geocaches.append(geocache)
+            self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, geocache)
         
-        if not self._caches:
+        if not self._geocaches:
             self._on_add_geocache()
     
     def _on_add_geocache(self):
-        link = Geocache()
-        self._caches.append(link)
-        self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, link)
+        geocache = Geocache()
+        self._geocaches.append(geocache)
+        self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, geocache)
     
     def _on_save_clicked(self):
         self._on_apply_clicked()
@@ -567,73 +719,49 @@ class Dialog(QtGui.QDialog):
     def _on_apply_clicked(self):
         print 'APPLY'
         
+        # Lookup all cacheFile nodes, and create a dict mapping from the XML
+        # file to the nodes which use it.
+        cache_nodes = cmds.ls(type='cacheFile') or []
+        path_to_cache_nodes = {}
+        for node in cache_nodes:
+            path = cmds.cacheFile(node, q=True, fileName=True)[0]
+            path_to_cache_nodes.setdefault(path, []).append(node)
+        
         original_selection = cmds.ls(sl=True)
-        for link in self._caches:
+        for geocache in self._geocaches:
             
-            cache_path = link.cachePath()
-            mapping = link.mapping()
+            cache_path = geocache.cachePath()
+            mapping = geocache.mapping()
             
-            if not selection:
-                continue
+            # We want to be mapping transforms, not shapes, and the MEL commands
+            # will find the shape that we want to be connecting to.
+            mapping = dict((get_transform(x), c) for x, c in mapping.iteritems())
             
-            # Delete existing caches.
-            history = set()
-            for node in selection:
-                try:
-                    history.update(cmds.listHistory(node, levels=2))
-                except TypeError:
-                    pass
-            caches = []
-            for node in history:
-                if cmds.nodeType(node) == 'cacheFile':
-                    caches.append(node)
-            if caches:
-                caches = list(set(caches))
-                if len(caches) == 1 and cmds.cacheFile(caches[0], q=True, fileName=True)[0] == cache:
-                    print '# Cache already up to date: %r' % cache
+            for cache_node in path_to_cache_nodes.get(cache_path, []):
+                
+                # Identify what it is connected to.
+                channel = cmds.getAttr(cache_node + '.channel[0]')
+                switch = cmds.listConnections(cache_node + '.outCacheData[0]')[0]
+                node = cmds.listConnections(switch + '.outputGeometry[0]')[0]
+                transform = get_transform(node)
+                
+                # Leave it alone (and remove it from the mapping) if it is
+                # already setup.
+                if mapping.get(transform) == channel:
+                    print '# Existing cache OK: %r to %r via %r' % (cache_node, transform, channel)
+                    del mapping[transform]
                     continue
-                else:
-                    print '# Removing old caches:'
-                    for old in caches:
-                        print '#\t-', cmds.cacheFile(old, q=True, fileName=True)[0]
-                    mel.eval('deleteCacheFile(3, {"keep", "%s", "geometry"})' % (
-                        ','.join(caches),
-                    ))
             
-            if cache is None:
-                continue
-            print '# Connecting:', cache
+                # Delete existing cache nodes.
+                print '# Deleting cache:', cache_node
+                mel.eval('deleteCacheFile(3, {"keep", "%s", "geometry"})' % cache_node)
             
-            # When a cache is created Maya creates a new shape node with
-            # "Deformed" appended to it. When the cache is deleted, Maya does
-            # not restore the network to it's original state, so the shapeNode
-            # is still named deformed. Trying to re-cache once this has
-            # happened breaks the import as the expected names have changed
-            # from the export. To avoid this, the transform node is always
-            # selected instead of the shape. The shape node is whats exported
-            # in the original cache.
-            cmds.select(clear=True)
-            clean_selection = []
-            for name in selection:
-                type_ = cmds.nodeType(name)
-                if type_ == 'mesh':
-                    clean_selection.append(cmds.listRelatives(name, parent=True)[0])
-                elif type_ == 'transform':
-                    clean_selection.append(name)
-            cmds.select(clean_selection, replace=True)
-            
-            channels = set(x.split(':')[-1] for x in cmds.cacheFile(
-                query=True,
-                fileName=cache,
-                channelName=True,
-            ) or [])
-            
-            clean_selection = [x for x in clean_selection if comparison_name(x) in channels]
-            
-            mel.eval('doImportCacheFile("%s", "Best Guess", {}, {})' % (
-                cache,
-                # ', '.join('"%s"' % x for x in selection),
-            ))
+            # Connect new caches.
+            for transform, channel in mapping.iteritems():
+                print '# Connecting: %r to %r' % (transform, channel)
+                mel.eval('doImportCacheFile("%s", "Best Guess", {"%s"}, {"%s"})' % (
+                    cache_path, transform, channel,
+                ))
         
         # Restore selection.
         if original_selection:
