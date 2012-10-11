@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import os
 import re
+import struct
 
 from PyQt4 import QtCore, QtGui
 Qt = QtCore.Qt
@@ -61,7 +62,67 @@ def silk_widget(name, size=16, tooltip=None):
         label.setToolTip(tooltip)
     return label
 
+def parse_cache(xml_path):
+    
+    
+    mcc_path = os.path.join(os.path.dirname(xml_path), os.path.splitext(os.path.basename(xml_path))[0] + 'Frame1.mc')
+    
+    print '# PARSING:', mcc_path
+    
+    fh = open(mcc_path, 'rb')
+    
+    tag = fh.read(4)
+    if tag != 'FOR4':
+        return {}
+    offset = struct.unpack('>i', fh.read(4))[0]
+    fh.seek(offset, 1)
+    
+    data = {}
+        
+    tag = fh.read(4)
+    if tag != 'FOR4':
+        raise ValueError('bad FOR4 tag %r @ %x' % (tag, fh.tell()))
+        
+    offset = struct.unpack('>i', fh.read(4))[0]
+    tag = fh.read(4)
+    if tag != 'MYCH':
+        raise ValueError('bad MYCH tag %r @ %x' % (tag, fh.tell()))
+            
+    while True:
+        
+        tag = fh.read(4)
+        if not tag:
+            break
+        if tag != 'CHNM':
+            raise ValueError('bad CHNM tag %r @ %x' % (tag, fh.tell()))
+        name_size = struct.unpack('>i', fh.read(4))[0]
+        name = fh.read(name_size)[:-1]
+        # print name_size, repr(name)
 
+        mask = 3
+        padded = (name_size + mask) & (~mask)            
+        padding = padded - name_size
+        if padding:
+            fh.seek(padding, 1)
+        
+        tag = fh.read(4)
+        if tag != 'SIZE':
+            raise ValueError('bad SIZE tag %r @ %x' % (tag, fh.tell()))
+        data_size_size = struct.unpack('>i', fh.read(4))[0]
+        if data_size_size != 4:
+            raise ValueError('bad size size %r @ %x' % (data_size_size, fh.tell()))
+        data_size = struct.unpack('>i', fh.read(data_size_size))[0]
+        
+        data[name] = data_size
+
+        tag = fh.read(4)
+        if tag != 'FVCA':
+            raise ValueError('bad FVCA tag %r @ %x' % (tag, fh.tell()))
+            
+        fh.seek(12 * data_size + 4, 1)
+        
+    return data
+    
 class ComboBox(QtGui.QComboBox):
     
     def itemData(self, index):
@@ -119,16 +180,17 @@ class Labeled(QtGui.QVBoxLayout):
 
 class ChannelMapping(ComboBox):
 
-    def __init__(self, node, geometry):
+    def __init__(self, channel, geometry):
         super(ChannelMapping, self).__init__()
-        self._node = node
+        self._channel = channel
         self._geometry = geometry
         self.activated.connect(self._on_activated)
     
     def _on_activated(self, index):
         data = self.currentData() or {}
-        channel = data.get('channel')
-        if channel is None:
+        shape = data.get('shape')
+        return
+        if shape is None:
             self._geometry._mapping.pop(self._node, None)
         else:
             self._geometry._mapping[self._node] = channel
@@ -167,9 +229,9 @@ class Geometry(QtGui.QWidget):
         self.layout().setContentsMargins(0, 0, 0, 0)
         self.setContentsMargins(0, 0, 0, 0)
         
-        self._mapping_button = QtGui.QPushButton(silk_icon('arrow_switch', 12), "Edit")
+        self._mapping_button = QtGui.QPushButton(silk_icon('arrow_switch', 12), "Mapping: Exact (3/3)")
         self._mapping_button.clicked.connect(self._on_mapping_clicked)
-        self._mapping_button.setFixedSize(QtCore.QSize(60, 22))
+        self._mapping_button.setFixedSize(QtCore.QSize(150, 22))
         self._main_layout.addWidget(self._mapping_button)
         
         self._delete_button = QtGui.QPushButton(silk_icon('delete', 12), "Delete")
@@ -201,7 +263,7 @@ class Geometry(QtGui.QWidget):
         for node in self.nodes():
             type_ = cmds.nodeType(node)
             if type_ == 'transform':
-                shapes = cmds.listRelatives(node, children=True, shapes=True)
+                shapes = cmds.listRelatives(node, children=True, type="mesh")
                 if shapes:
                     res.add(shapes[0])
             elif type_ == 'mesh':
@@ -236,30 +298,34 @@ class Geometry(QtGui.QWidget):
         layout.setVerticalSpacing(1)
         self._mapping_box.setLayout(layout)
         
-        channels = self.parent().channels()
+        cache_path = self.parent().cachePath()
+        channels = parse_cache(cache_path)
+        shapes = dict((shape, cmds.getAttr(shape + '.vrts', size=True)) for shape in self.meshes())
         
-        for row, node in enumerate(sorted(self.meshes())):
+        for row, (channel, channel_point_count) in enumerate(sorted(channels.iteritems())):
 
-            combobox = ChannelMapping(node, self)
+            combobox = ChannelMapping(channel, self)
             combobox.setMaximumHeight(20)
             combobox.addItem('<None>')
-            for channel in channels:
-                if comparison_name(channel) == comparison_name(node):
-                    combobox.addItem(silk_icon('asterisk_orange', 10), channel, dict(channel=channel))
+            for shape, shape_point_count in sorted(shapes.iteritems()):
+                if channel_point_count != shape_point_count:
+                    continue
+                if comparison_name(channel) == comparison_name(shape):
+                    combobox.addItem(silk_icon('asterisk_orange', 10), self._node_display_name(shape), dict(shape=shape))
                 else:
-                    combobox.addItem(channel, dict(channel=channel))
+                    combobox.addItem(self._node_display_name(shape), dict(shape=shape))
             
             cautions = []
             
             # Reselect the old mapping, and add a "missing" item if we can't
             # find it.
-            selected = self._mapping.get(node)
-            if not combobox.selectWithData('channel', self._mapping.get(node)) and selected:
-                cautions.append('Channel "%s" does not exist' % selected)
-                combobox.addItem(selected + ' (missing)', dict(channel=selected))
-                combobox.selectWithData('channel', selected)
+            # selected = self._mapping.get(shape)
+            # if not combobox.selectWithData('shape', self._mapping.get(shape)) and selected:
+            #     cautions.append('Channel "%s" does not exist' % selected)
+            #     combobox.addItem(selected + ' (missing)', dict(channel=selected))
+            #     combobox.selectWithData('channel', selected)
             
-            layout.addWidget(QtGui.QLabel(self._node_display_name(node)), row, 0, alignment=Qt.AlignRight)
+            layout.addWidget(QtGui.QLabel(self._node_display_name(channel) + ':'), row, 0, alignment=Qt.AlignRight)
             layout.addWidget(combobox, row, 1)
             
             if cautions:
