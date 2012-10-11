@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import os
 import re
 import difflib
+import sys
 
 from PyQt4 import QtCore, QtGui
 Qt = QtCore.Qt
@@ -12,7 +13,7 @@ from maya import cmds, mel
 from sgfs import SGFS
 
 from ks.core.scene_name.core import SceneName
-from ks.maya import mcc
+from .. import mcc
 from . import utils
 
 
@@ -374,7 +375,8 @@ class Reference(Geometry):
     def _populate_combobox(self):
         for reference in cmds.file(q=True, reference=True) or []:
             namespace = utils.get_reference_namespace(reference)
-            self._combobox.addItem('%s: %s' % (namespace, os.path.basename(reference)), dict(
+            namespace_label = '%s: ' % namespace if namespace else ''
+            self._combobox.addItem('%s%s' % (namespace_label, os.path.basename(reference)), dict(
                 namespace=namespace,
                 reference=reference,
             ))
@@ -405,7 +407,7 @@ class Selection(Geometry):
         self._field.editingFinished.connect(self._on_field_changed)
         self._main_layout.addWidget(self._field)
         
-        button = QtGui.QPushButton("Update")
+        button = QtGui.QPushButton(silk_icon("arrow_refresh", 12), "Update")
         button.clicked.connect(self._on_update)
         button.setFixedSize(button.sizeHint().boundedTo(QtCore.QSize(1000, 20)))
         self._main_layout.addWidget(button)

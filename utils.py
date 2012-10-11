@@ -5,7 +5,8 @@ from maya import cmds, mel
 
 def basename(name):
     return re.sub(r'[^:|]*[:|]', '', name)
-    
+
+
 def simple_name(input_name):
     """Get a simpler name for comparisons.
     
@@ -24,13 +25,17 @@ def simple_name(input_name):
 
 def get_reference_namespace(reference):
     try:
-        return cmds.referenceQuery(reference, namespace=True, xxx=True).strip(':')
+        namespace = cmds.referenceQuery(reference, namespace=True, xxx=True)
+    except RuntimeError:
+        return
     except TypeError:
         nodes = cmds.referenceQuery(reference, nodes=True)
-        name = nodes[0]
-        name = name.split('|', 1)[0]
-        name = name.rsplit(':', 1)[0]
-        return name.strip(':')
+        if nodes:
+            name = nodes[0]
+            name = name.split('|', 1)[0]
+            namespace = name.rsplit(':', 1)[0]
+    if namespace:
+        return namespace.strip(':')
         
     
 def get_transform(input_node):
