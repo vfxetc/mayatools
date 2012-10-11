@@ -956,20 +956,22 @@ __also_reload__ = [
 
 
 def __before_reload__():
+    # We have to manually clean this, since we aren't totally sure it will
+    # always fall out of scope.
+    global dialog
     if dialog:
         dialog.close()
+        dialog.destroy()
+        dialog = None
 
 
 dialog = None
 
 
 def run():
-    
     global dialog
-    
     if dialog:
         dialog.close()
-    
-    dialog = Dialog()    
+    dialog = Dialog()
     dialog.show()
         
