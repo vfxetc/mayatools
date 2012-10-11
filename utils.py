@@ -97,13 +97,17 @@ def iter_existing_cache_connections():
         transform = cmds.listConnections(switch + '.outputGeometry[0]')[0]
         shapes = cmds.listRelatives(transform, children=True, shapes=True)
         
-        # Maya will often add a "Deformed" copy of a mesh
-        if len(shapes) == 2:
+        # Maya will often add a "Deformed" copy of a mesh. Sometimes there is
+        # a "Orig". Sometimes there are both.
+        if len(shapes) > 1:
             a = basename(shapes[0])
-            b = basename(shapes[1])
-            if (b[:len(a)] == a and
-                b[len(a):] in ('Deformed', 'Orig')
-            ):
+            for other in shapes[1:]:
+                b = basename(other)
+                if not (b[:len(a)] == a and
+                    b[len(a):] in ('Deformed', 'Orig')
+                ):
+                    break
+            else:
                 shapes = [shapes[0]]
         if len(shapes) != 1:
             cmds.warning('Could not identify single shape connected to cache; found %r' % shapes)
