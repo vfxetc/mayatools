@@ -883,11 +883,29 @@ class Dialog(QtGui.QDialog):
             ))
         
         original_selection = cmds.ls(sl=True)
+        
+        # Get all the caches.
+        geocaches = {}
         for geocache in self._geocaches:
             cache_path = geocache.cachePath()
             if not cache_path:
                 continue
-            
+            geocaches[cache_path] = geocache
+        
+        # We delete as many caches as we can before creating them, because the
+        # mel script which does the connections seems to have some issues with
+        # naming collisions on the cacheBlend nodes. This has cleaned up as
+        # much of the problem as I think that I can without doing the full
+        # import ourselves.
+        
+        # Delete stray caches.
+        for cache_path, connections in path_to_connections.iteritems():
+            if cache_path not in geocaches:
+                for cache_node, channel, transform, shape in connections:
+                    utils.delete_cache(cache_node)
+        
+        to_import = []
+        for cache_path, geocache in geocaches.iteritems():
             # Get the mapping from shapes to channels, and turn it into
             # transforms to channels since we want to treat the potential
             # "Deformed" copy as the same.
@@ -897,11 +915,11 @@ class Dialog(QtGui.QDialog):
                 transform_to_channels.setdefault(transform, []).append(channel)
             
             # Clean up the existing ones.
-            for cache_node, channel, transform, shape in path_to_connections.get(cache_path, []):
+            for cache_node, channel, transform, shape in path_to_connections.pop(cache_path, []):
                 
                 # Leave matching ones alone.
                 if channel in transform_to_channels.get(transform, ()):
-                    print '# Existing cache OK: %r to %r via %r' % (cache_node, transform, channel)
+                    print '# Existing cache OK: %r' % cache_node
                     # Remove it from the channel list.
                     transform_to_channels[transform] = [x for x in transform_to_channels[transform] if x != channel]
                     continue
@@ -909,13 +927,17 @@ class Dialog(QtGui.QDialog):
                 # Otherwise, delete the existing connection.
                 utils.delete_cache(cache_node)
             
-            # Connect new caches.
+            # Schedule new cache connections.
             for transform, channels in transform_to_channels.iteritems():
                 for channel in channels:
-                    print '# Connecting: %r to %r' % (transform, channel)
-                    mel.eval('doImportCacheFile("%s", "Best Guess", {"%s"}, {"%s"})' % (
-                        cache_path, transform, channel,
-                    ))
+                    to_import.append((cache_path, transform, channel))
+        
+        # Create new connections.
+        for cache_path, transform, channel in to_import:
+            print '# Connecting: %r to %r' % (transform, channel)
+            mel.eval('doImportCacheFile("%s", "Best Guess", {"%s"}, {"%s"})' % (
+                cache_path, transform, channel,
+            ))
         
         # Restore selection.
         if original_selection:
