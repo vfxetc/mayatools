@@ -102,6 +102,19 @@ def iter_existing_cache_connections():
         
         # The switch hooks onto a transform, but we want the shapes.
         transform = cmds.listConnections(switch + '.outputGeometry[0]')[0]
+        
+        # Pass through groupParts.
+        while True:
+            transform_type = cmds.nodeType(transform)
+            if transform_type == 'groupParts':
+                transform = cmds.listConnections(transform + '.outputGeometry')[0]
+            elif transform_type == 'transform':
+                break
+            else:
+                cmds.warning('Unknown cache node layout; found %s %r' % (transform_type, transform))
+                yield cache_node, cache_path, channel, None, None
+                continue
+                
         shapes = cmds.listRelatives(transform, children=True, shapes=True) or []
         
         # Maya will often add a "Deformed" copy of a mesh. Sometimes there is
