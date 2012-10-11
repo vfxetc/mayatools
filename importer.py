@@ -877,6 +877,9 @@ class Dialog(QtGui.QDialog):
         # Find the existing stuff.
         path_to_connections = {}
         for cache_node, cache_path, channel, transform, shape in utils.iter_existing_cache_connections():
+            # Ignore the malformed ones for now.
+            if shape is None:
+                continue
             path_to_connections.setdefault(cache_path, []).append((
                 cache_node, channel, transform, shape
             ))

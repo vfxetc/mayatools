@@ -62,6 +62,10 @@ def iter_existing_cache_connections():
     :returns: Iterator of ``(cacheFile, fileName, channel, transform, shape)``
         tuples for each cache connection.
     
+    It is possible for ``transform`` or ``shape`` to be ``None`` when the
+    connection cannot be fully resolved. In every case that the connection is
+    not complete, ``shape`` will be ``None``.
+    
     """
 
     cache_nodes = cmds.ls(type='cacheFile') or []
@@ -75,6 +79,7 @@ def iter_existing_cache_connections():
         switch = cmds.listConnections(cache_node + '.outCacheData[0]')
         if not switch:
             cmds.warning('cacheFile %r is not connected' % cache_node)
+            yield cache_node, cache_path, channel, None, None
             continue
         switch = switch[0]
         switch_type = cmds.nodeType(switch)
@@ -85,17 +90,19 @@ def iter_existing_cache_connections():
             switch = cmds.listConnections(blend + '.outCacheData[0]')
             if not switch:
                 cmds.warning('cacheBlend %r is not connected' % blend)
+                yield cache_node, cache_path, channel, None, None
                 continue
             switch = switch[0]
             switch_type = cmds.nodeType(switch)
             
         if switch_type != 'historySwitch':
             cmds.warning('Unknown cache node layout; found %s %r' % (switch_type, switch))
+            yield cache_node, cache_path, channel, None, None
             continue
         
         # The switch hooks onto a transform, but we want the shapes.
         transform = cmds.listConnections(switch + '.outputGeometry[0]')[0]
-        shapes = cmds.listRelatives(transform, children=True, shapes=True)
+        shapes = cmds.listRelatives(transform, children=True, shapes=True) or []
         
         # Maya will often add a "Deformed" copy of a mesh. Sometimes there is
         # a "Orig". Sometimes there are both.
@@ -110,7 +117,8 @@ def iter_existing_cache_connections():
             else:
                 shapes = [shapes[0]]
         if len(shapes) != 1:
-            cmds.warning('Could not identify single shape connected to cache; found %r' % shapes)
+            cmds.warning('Could not identify shape connected to %r; found %r' % (cache_node, shapes))
+            yield cache_node, cache_path, channel, transform, None
             continue
         shape = shapes[0]
         
@@ -140,6 +148,8 @@ def get_existing_cache_mappings():
     
     mappings = {}
     for cache_node, cache_path, channel, transform, shape in iter_existing_cache_connections():
+        if shape is None:
+            continue
         mapping = mappings.setdefault(cache_path, {})
         mapping[shape] = channel
     return mappings
