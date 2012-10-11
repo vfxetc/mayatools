@@ -13,7 +13,6 @@ from maya import cmds, mel
 from sgfs import SGFS
 
 from ks.core.scene_name.core import SceneName
-from .. import mcc
 from . import utils
 
 
@@ -205,26 +204,37 @@ class Geometry(QtGui.QWidget):
         if self._custom_mapping:
             return
         
-        channels = self.parent().channels()
-        meshes = self.meshes()
+        cache_path = self.parent().cachePath()
+        channels = utils.get_cache_channels(cache_path)
+        meshes = utils.get_point_counts(self.meshes())
         
         # Automatically select exact matches.
-        for channel in channels:
-            for mesh in meshes:
+        for channel, channel_size in channels:
+            for mesh, mesh_size in meshes:
+                if channel_size != mesh_size and channel_size is not None:
+                    continue
                 if utils.simple_name(mesh) == utils.simple_name(channel):
                     self._mapping[channel] = mesh
                     break
     
     def _on_fuzzy_match(self, button=None, channels=None):
+        
         self._custom_mapping = True
         if channels is None:
             channels = self.parent().channels()
-        meshes = self.meshes()
+        
+        cache_path = self.parent().cachePath()
+        channel_sizes = dict(utils.get_cache_channels(cache_path))
+        meshes = utils.get_point_counts(self.meshes())
+            
         changed = False
         for channel in channels:
+            channel_size = channel_sizes.get(channel)
             combobox = self._channel_boxes[channel]
             best = (0, None)
-            for mesh in meshes:
+            for mesh, mesh_size in meshes:
+                if channel_size != mesh_size and channel_size is not None:
+                    continue 
                 if utils.simple_name(mesh) == utils.simple_name(channel):
                     self._mapping[channel] = mesh
                     combobox.selectWithData("shape", mesh)
@@ -266,16 +276,9 @@ class Geometry(QtGui.QWidget):
         self._mapping_box.setLayout(layout)
         
         cache_path = self.parent().cachePath()
-        if cache_path is not None:
-            try:
-                channels = mcc.get_channels(cache_path)
-            except mcc.ParseError as e:
-                cmds.warning('Could not parse MCC for channel data; %r' % e)
-                channels = cmds.cacheFile(q=True, fileName=cache_path, channelName=True)
-                channels = [(c, None) for c in channels]
-        else:
-            channels = []
-        shapes = dict((shape, cmds.getAttr(shape + '.vrts', size=True)) for shape in self.meshes())
+        channels = utils.get_cache_channels(cache_path)
+        
+        shapes = dict(utils.get_point_counts(self.meshes()))
         
         def button_row(channel=None):
             row = QtGui.QWidget()
@@ -789,6 +792,7 @@ class Geocache(QtGui.QGroupBox):
         
         if selection:
             for reversed_mapping in self._reverse_mapping(selection):
+                print reversed_mapping
                 geo = Selection(selection=reversed_mapping.values(), mapping=reversed_mapping, parent=self)
                 self._geometry.append(geo)
                 self._geometry_layout.addWidget(geo)
@@ -953,7 +957,6 @@ class Dialog(QtGui.QDialog):
 
 __also_reload__ = [
     'ks.core.scene_name.core',
-    'ks.maya.mcc',
     'ks.maya.geocache.utils',
 ]
 

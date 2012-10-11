@@ -2,7 +2,23 @@ import re
 
 from maya import cmds, mel
 
+from ks.maya import mcc
 
+def get_cache_channels(cache_path):
+    if cache_path is None:
+        return []
+    try:
+        return mcc.get_channels(cache_path)
+    except mcc.ParseError as e:
+        cmds.warning('Could not parse MCC for channel data; %r' % e)
+        channels = cmds.cacheFile(q=True, fileName=cache_path, channelName=True)
+        return [(c, None) for c in channels]
+
+
+def get_point_counts(meshes):
+    return [(mesh, cmds.getAttr(mesh + '.vrts', size=True)) for mesh in meshes]
+
+    
 def basename(name):
     return re.sub(r'[^:|]*[:|]', '', name)
 
