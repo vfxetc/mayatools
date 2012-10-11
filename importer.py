@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import os
 import re
+import difflib
 
 from PyQt4 import QtCore, QtGui
 Qt = QtCore.Qt
@@ -114,6 +115,7 @@ class ChannelMapping(ComboBox):
             self._geometry._mapping.pop(self._channel, None)
         else:
             self._geometry._mapping[self._channel] = shape
+        self._geometry._custom_mapping = True
 
 
 class Geometry(QtGui.QWidget):
@@ -123,8 +125,8 @@ class Geometry(QtGui.QWidget):
         
         #: Map channels to shapes.
         self._mapping = mapping or {}
-        self._do_auto_map = mapping is None
-        
+        self._custom_mapping = mapping is not None
+        print '__init__._custom_mapping', self._custom_mapping
         self._setup_pre_ui()
         self._setup_ui()
         self._setup_post_ui()
@@ -161,7 +163,7 @@ class Geometry(QtGui.QWidget):
         self._main_layout.addWidget(self._delete_button)
         
         # Finally setup the mapping UI. This requires self.meshes() to work.
-        self._cache_changed(self.parent())
+        self._cache_changed()
     
     def _on_mapping_clicked(self):
         do_open = self._mapping_box and self._mapping_box.isHidden()
@@ -191,18 +193,60 @@ class Geometry(QtGui.QWidget):
                 res.add(node)
         return sorted(res)
     
-    def _cache_changed(self, geocache):
-        self._channels_changed(geocache.channels())
+    def _cache_changed(self):
+        self._auto_match()
         self._setup_mapping_ui()
     
-    def _channels_changed(self, channels):
+    def _auto_match(self):
+        
+        # Only do this something has been custom done.
+        if self._custom_mapping:
+            return
+        
+        channels = self.parent().channels()
+        meshes = self.meshes()
+        
         # Automatically select exact matches.
         for channel in channels:
-            if self._mapping.get(channel) is None:
-                for mesh in self.meshes():
-                    if utils.simple_name(mesh) == utils.simple_name(channel):
-                        self._mapping[channel] = mesh
-                        break
+            for mesh in meshes:
+                if utils.simple_name(mesh) == utils.simple_name(channel):
+                    self._mapping[channel] = mesh
+                    break
+    
+    def _on_fuzzy_match(self, button=None, channels=None):
+        if channels is None:
+            channels = self.parent().channels()
+        meshes = self.meshes()
+        changed = False
+        for channel in channels:
+            best = (0, None)
+            for mesh in meshes:
+                if utils.simple_name(mesh) == utils.simple_name(channel):
+                    self._mapping[channel] = mesh
+                    changed = True
+                    break
+                ratio = difflib.SequenceMatcher(None, mesh, channel).ratio()
+                if ratio > best[0]:
+                    best = (ratio, mesh)
+            else:
+                if best[1] is not None:
+                    self._mapping[channel] = best[1]
+                    changed = True
+        if changed:
+            self._custom_mapping = True
+            self._setup_mapping_ui()
+    
+    def _on_unlink(self, button=None, channels=None):
+        if channels is None:
+            channels = self.parent().channels()
+        changed = False
+        for channel in channels:
+            if self._mapping.pop(channel):
+                changed = True
+        if changed:
+            self._custom_mapping = True
+            self._setup_mapping_ui()
+            
     
     def _node_display_name(self, node):
         return node.rsplit('|', 1)[-1]
@@ -215,21 +259,50 @@ class Geometry(QtGui.QWidget):
             QtGui.QWidget().setLayout(self._mapping_box.layout())
         
         layout = QtGui.QGridLayout()
-        layout.setColumnStretch(3, 1)
+        layout.setColumnStretch(4, 1)
         layout.setVerticalSpacing(1)
         self._mapping_box.setLayout(layout)
         
         cache_path = self.parent().cachePath()
-        try:
-            channels = mcc.get_channels(cache_path)
-        except mcc.ParseError as e:
-            cmds.warning('Could not parse MCC for channel data; %r' % e)
-            channels = cmds.cacheFile(q=True, fileName=cache_path, channelName=True)
-            channels = [(c, None) for c in channels]
+        if cache_path is not None:
+            try:
+                channels = mcc.get_channels(cache_path)
+            except mcc.ParseError as e:
+                cmds.warning('Could not parse MCC for channel data; %r' % e)
+                channels = cmds.cacheFile(q=True, fileName=cache_path, channelName=True)
+                channels = [(c, None) for c in channels]
+        else:
+            channels = []
         shapes = dict((shape, cmds.getAttr(shape + '.vrts', size=True)) for shape in self.meshes())
         
+        def button_row(channel=None):
+            row = QtGui.QWidget()
+            row.setLayout(QtGui.QHBoxLayout())
+            row.layout().setContentsMargins(0, 0, 0, 0)
+            row.layout().setSpacing(1)
+            
+            label = '"%s"' % channel if channel else 'All'
+            button = QtGui.QPushButton(silk_icon('arrow_refresh', 12), '')
+            button.setFixedSize(QtCore.QSize(20, 20))
+            button.setToolTip('Fuzzy Match %s' % label)
+            channels = [channel] if channel else None
+            button.clicked.connect(lambda *args: self._on_fuzzy_match(channels=channels))
+            row.layout().addWidget(button)
+            
+            button = QtGui.QPushButton(silk_icon('cross', 12), '')
+            button.setFixedSize(QtCore.QSize(20, 20))
+            button.setToolTip('Unlink %s' % label)
+            button.clicked.connect(lambda *args: self._on_unlink(channels=channels))
+            row.layout().addWidget(button) 
+                       
+            return row
+            
+        if len(channels) > 1:
+            layout.addWidget(button_row(), 0, 2)
+        
         for row, (channel, channel_point_count) in enumerate(sorted(channels)):
-
+            row += 1
+            
             combobox = ChannelMapping(channel=channel, geometry=self)
             combobox.setMaximumHeight(20)
             combobox.addItem('<None>')
@@ -254,12 +327,16 @@ class Geometry(QtGui.QWidget):
             layout.addWidget(QtGui.QLabel(self._node_display_name(channel) + ':'), row, 0, alignment=Qt.AlignRight)
             layout.addWidget(combobox, row, 1)
             
-            if cautions:
-                icon = silk_widget('cross', 12, '; '.join(cautions))
-            else:
-                icon = silk_widget('tick', 12, 'OK')
-            layout.addWidget(icon, row, 2)
+            layout.addWidget(button_row(channel), row, 2)
             
+            if cautions:
+                icon = silk_widget('error', 12, '; '.join(cautions))
+            else:
+                icon = None
+            if icon is not None:
+                layout.addWidget(icon, row, 3)
+        
+        
         # For some reason I can't always get the layout to update it, so I force
         # it my adding a hidden label. Please remove this if you can.
         trigger = QtGui.QLabel('')
@@ -293,13 +370,14 @@ class Reference(Geometry):
     
     def _populate_combobox(self):
         for reference in cmds.file(q=True, reference=True) or []:
-            namespace = cmds.referenceQuery(reference, namespace=True).strip(':')
+            namespace = utils.get_reference_namespace(reference)
             self._combobox.addItem('%s: %s' % (namespace, os.path.basename(reference)), dict(
                 namespace=namespace,
                 reference=reference,
             ))
     
     def _on_combobox_changed(self, index):
+        self._auto_match()
         self._setup_mapping_ui()
     
     def nodes(self):
@@ -342,6 +420,7 @@ class Selection(Geometry):
         self._setup_mapping_ui()
     
     def _on_field_changed(self):
+        self._auto_match()
         self._setup_mapping_ui()
         
     def _on_update(self):
@@ -583,7 +662,7 @@ class Geocache(QtGui.QGroupBox):
     
     def _on_object_changed(self, index=None):
         for geo in self._geometry:
-            geo._cache_changed(self)
+            geo._cache_changed()
 
     def _on_cache_browse(self):
         file_name = str(QtGui.QFileDialog.getOpenFileName(self, "Select Geocache", os.getcwd(), "Geocaches (*.xml)"))
@@ -851,7 +930,7 @@ class Dialog(QtGui.QDialog):
 __also_reload__ = [
     'ks.core.scene_name.core',
     'ks.maya.mcc',
-    '.utils',
+    'ks.maya.geocache.utils',
 ]
 
 

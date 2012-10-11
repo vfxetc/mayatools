@@ -3,6 +3,9 @@ import re
 from maya import cmds, mel
 
 
+def basename(name):
+    return re.sub(r'[^:|]*[:|]', '', name)
+    
 def simple_name(input_name):
     """Get a simpler name for comparisons.
     
@@ -11,7 +14,7 @@ def simple_name(input_name):
     
     """
     name = input_name.lower()
-    name = re.sub(r'[^:|]*[:|]', '', name)
+    name = basename(name)
     name = re.sub(r'(deformed|orig(inal)?s?|geo(metry)?|shapes?|spl?ines?)', '_', name)
     name = re.sub(r'[\d_]+$', '', name)
     name = re.sub(r'[^a-z0-9]', '_', name)
@@ -19,6 +22,17 @@ def simple_name(input_name):
     return name
 
 
+def get_reference_namespace(reference):
+    try:
+        return cmds.referenceQuery(reference, namespace=True, xxx=True).strip(':')
+    except TypeError:
+        nodes = cmds.referenceQuery(reference, nodes=True)
+        name = nodes[0]
+        name = name.split('|', 1)[0]
+        name = name.rsplit(':', 1)[0]
+        return name.strip(':')
+        
+    
 def get_transform(input_node):
     """Walk the heirarchy looking for the nearest parent which is a transform."""
     node = input_node
@@ -79,11 +93,13 @@ def iter_existing_cache_connections():
         shapes = cmds.listRelatives(transform, children=True, shapes=True)
         
         # Maya will often add a "Deformed" copy of a mesh
-        if (len(shapes) == 2 and
-            shapes[1][:len(shapes[0])] == shapes[0] and
-            shapes[1][len(shapes[0]):] == 'Deformed'
-        ):
-            shapes = [shapes[0]]
+        if len(shapes) == 2:
+            a = basename(shapes[0])
+            b = basename(shapes[1])
+            if (b[:len(a)] == a and
+                b[len(a):] in ('Deformed', 'Orig')
+            ):
+                shapes = [shapes[0]]
         if len(shapes) != 1:
             cmds.warning('Could not identify single shape connected to cache; found %r' % shapes)
             continue
