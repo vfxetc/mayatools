@@ -126,7 +126,9 @@ class Geometry(QtGui.QWidget):
         #: Map channels to shapes.
         self._mapping = mapping or {}
         self._custom_mapping = mapping is not None
-        print '__init__._custom_mapping', self._custom_mapping
+        
+        self._channel_boxes = {}
+        
         self._setup_pre_ui()
         self._setup_ui()
         self._setup_post_ui()
@@ -152,15 +154,15 @@ class Geometry(QtGui.QWidget):
         self.layout().setContentsMargins(0, 0, 0, 0)
         self.setContentsMargins(0, 0, 0, 0)
         
-        self._mapping_button = QtGui.QPushButton(silk_icon('arrow_switch', 12), "Edit")
-        self._mapping_button.clicked.connect(self._on_mapping_clicked)
-        self._mapping_button.setFixedSize(QtCore.QSize(60, 22))
-        self._main_layout.addWidget(self._mapping_button)
+        button = QtGui.QPushButton(silk_icon('arrow_switch', 12), "Edit")
+        button.clicked.connect(self._on_mapping_clicked)
+        button.setFixedSize(button.sizeHint().boundedTo(QtCore.QSize(1000, 22)))
+        self._main_layout.addWidget(button)
         
-        self._delete_button = QtGui.QPushButton(silk_icon('delete', 12), "Delete")
-        self._delete_button.clicked.connect(self._on_delete)
-        self._delete_button.setFixedSize(QtCore.QSize(70, 22))
-        self._main_layout.addWidget(self._delete_button)
+        button = QtGui.QPushButton(silk_icon('delete', 12), "Delete")
+        button.clicked.connect(self._on_delete)
+        button.setFixedSize(button.sizeHint().boundedTo(QtCore.QSize(1000, 22)))
+        self._main_layout.addWidget(button)
         
         # Finally setup the mapping UI. This requires self.meshes() to work.
         self._cache_changed()
@@ -194,7 +196,6 @@ class Geometry(QtGui.QWidget):
         return sorted(res)
     
     def _cache_changed(self):
-        self._auto_match()
         self._setup_mapping_ui()
     
     def _auto_match(self):
@@ -214,16 +215,18 @@ class Geometry(QtGui.QWidget):
                     break
     
     def _on_fuzzy_match(self, button=None, channels=None):
+        self._custom_mapping = True
         if channels is None:
             channels = self.parent().channels()
         meshes = self.meshes()
         changed = False
         for channel in channels:
+            combobox = self._channel_boxes[channel]
             best = (0, None)
             for mesh in meshes:
                 if utils.simple_name(mesh) == utils.simple_name(channel):
                     self._mapping[channel] = mesh
-                    changed = True
+                    combobox.selectWithData("shape", mesh)
                     break
                 ratio = difflib.SequenceMatcher(None, mesh, channel).ratio()
                 if ratio > best[0]:
@@ -231,27 +234,25 @@ class Geometry(QtGui.QWidget):
             else:
                 if best[1] is not None:
                     self._mapping[channel] = best[1]
-                    changed = True
-        if changed:
-            self._custom_mapping = True
-            self._setup_mapping_ui()
+                    combobox.selectWithData("shape", best[1])
     
     def _on_unlink(self, button=None, channels=None):
+        self._custom_mapping = True
         if channels is None:
             channels = self.parent().channels()
         changed = False
         for channel in channels:
-            if self._mapping.pop(channel):
-                changed = True
-        if changed:
-            self._custom_mapping = True
-            self._setup_mapping_ui()
-            
+            combobox = self._channel_boxes[channel]
+            if self._mapping.pop(channel, None):
+                combobox.setCurrentIndex(0)
     
     def _node_display_name(self, node):
         return node.rsplit('|', 1)[-1]
     
     def _setup_mapping_ui(self):
+        
+        self._auto_match()
+        self._channel_boxes = {}
         
         # Easiest way to destroy a layout and all of it's children: transfer
         # the layout to another widget that is immediately garbage collected.
@@ -282,15 +283,15 @@ class Geometry(QtGui.QWidget):
             row.layout().setSpacing(1)
             
             label = '"%s"' % channel if channel else 'All'
-            button = QtGui.QPushButton(silk_icon('arrow_refresh', 12), '')
-            button.setFixedSize(QtCore.QSize(20, 20))
+            button = QtGui.QPushButton(silk_icon('arrow_refresh', 12), 'Fuzz')
+            button.setFixedSize(button.sizeHint().boundedTo(QtCore.QSize(1000, 20)))
             button.setToolTip('Fuzzy Match %s' % label)
             channels = [channel] if channel else None
             button.clicked.connect(lambda *args: self._on_fuzzy_match(channels=channels))
             row.layout().addWidget(button)
             
-            button = QtGui.QPushButton(silk_icon('cross', 12), '')
-            button.setFixedSize(QtCore.QSize(20, 20))
+            button = QtGui.QPushButton(silk_icon('cross', 12), 'Unlink')
+            button.setFixedSize(button.sizeHint().boundedTo(QtCore.QSize(1000, 20)))
             button.setToolTip('Unlink %s' % label)
             button.clicked.connect(lambda *args: self._on_unlink(channels=channels))
             row.layout().addWidget(button) 
@@ -313,6 +314,8 @@ class Geometry(QtGui.QWidget):
                     combobox.addItem(silk_icon('asterisk_orange', 10), self._node_display_name(shape), dict(shape=shape))
                 else:
                     combobox.addItem(self._node_display_name(shape), dict(shape=shape))
+            
+            self._channel_boxes[channel] = combobox
             
             cautions = []
             
@@ -377,7 +380,6 @@ class Reference(Geometry):
             ))
     
     def _on_combobox_changed(self, index):
-        self._auto_match()
         self._setup_mapping_ui()
     
     def nodes(self):
@@ -403,10 +405,10 @@ class Selection(Geometry):
         self._field.editingFinished.connect(self._on_field_changed)
         self._main_layout.addWidget(self._field)
         
-        self._update_button = QtGui.QPushButton("Update")
-        self._update_button.clicked.connect(self._on_update)
-        self._update_button.setFixedSize(QtCore.QSize(60, 22))
-        self._main_layout.addWidget(self._update_button)
+        button = QtGui.QPushButton("Update")
+        button.clicked.connect(self._on_update)
+        button.setFixedSize(button.sizeHint().boundedTo(QtCore.QSize(1000, 20)))
+        self._main_layout.addWidget(button)
         
         super(Selection, self)._setup_ui()
     
@@ -420,7 +422,6 @@ class Selection(Geometry):
         self._setup_mapping_ui()
     
     def _on_field_changed(self):
-        self._auto_match()
         self._setup_mapping_ui()
         
     def _on_update(self):
@@ -436,7 +437,7 @@ class Geocache(QtGui.QGroupBox):
     
     def __init__(self):
         super(Geocache, self).__init__()
-        
+                
         #: Mapping of shape nodes to channels.
         self._mapping = {}
         
@@ -501,19 +502,15 @@ class Geocache(QtGui.QGroupBox):
         button_layout = QtGui.QHBoxLayout()
         self.layout().addLayout(button_layout)
         
-        icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/link_add.png')
-        icon = QtGui.QIcon(icon.pixmap(12, 12))
-        self._link_reference_button = QtGui.QPushButton(icon, "Add Reference Link")
-        self._link_reference_button.clicked.connect(self._on_add_reference_link)
-        self._link_reference_button.setMaximumHeight(22)
-        button_layout.addWidget(self._link_reference_button)
+        button = QtGui.QPushButton(silk_icon('link_add', 12), "Add Reference Link")
+        button.clicked.connect(self._on_add_reference_link)
+        button.setMaximumHeight(22)
+        button_layout.addWidget(button)
         
-        icon = QtGui.QIcon('/home/mboers/Documents/icons/silk/icons/link_add.png')
-        icon = QtGui.QIcon(icon.pixmap(12, 12))
-        self._link_selection_button = QtGui.QPushButton(icon, "Add Selection Link")
-        self._link_selection_button.clicked.connect(self._on_add_selection_link)
-        self._link_selection_button.setMaximumHeight(22)
-        button_layout.addWidget(self._link_selection_button)
+        button = QtGui.QPushButton(silk_icon('link_add', 12), "Add Selection Link")
+        button.clicked.connect(self._on_add_selection_link)
+        button.setMaximumHeight(22)
+        button_layout.addWidget(button)
         
         button_layout.addStretch()
         
