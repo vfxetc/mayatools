@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 import os
 import re
-import struct
 
 from PyQt4 import QtCore, QtGui
 Qt = QtCore.Qt
@@ -10,6 +9,7 @@ Qt = QtCore.Qt
 from maya import cmds, mel
 
 from ks.core.scene_name.core import SceneName
+from ks.maya import mcc
 from sgfs import SGFS
 
 
@@ -53,6 +53,7 @@ def silk_icon(name, size=16):
         icon = QtGui.QIcon(icon.pixmap(size, size))
     return icon
 
+
 def silk_widget(name, size=16, tooltip=None):
     icon = QtGui.QIcon(silk(name))
     label = QtGui.QLabel()
@@ -62,67 +63,7 @@ def silk_widget(name, size=16, tooltip=None):
         label.setToolTip(tooltip)
     return label
 
-def parse_cache(xml_path):
-    
-    
-    mcc_path = os.path.join(os.path.dirname(xml_path), os.path.splitext(os.path.basename(xml_path))[0] + 'Frame1.mc')
-    
-    print '# PARSING:', mcc_path
-    
-    fh = open(mcc_path, 'rb')
-    
-    tag = fh.read(4)
-    if tag != 'FOR4':
-        return {}
-    offset = struct.unpack('>i', fh.read(4))[0]
-    fh.seek(offset, 1)
-    
-    data = {}
-        
-    tag = fh.read(4)
-    if tag != 'FOR4':
-        raise ValueError('bad FOR4 tag %r @ %x' % (tag, fh.tell()))
-        
-    offset = struct.unpack('>i', fh.read(4))[0]
-    tag = fh.read(4)
-    if tag != 'MYCH':
-        raise ValueError('bad MYCH tag %r @ %x' % (tag, fh.tell()))
-            
-    while True:
-        
-        tag = fh.read(4)
-        if not tag:
-            break
-        if tag != 'CHNM':
-            raise ValueError('bad CHNM tag %r @ %x' % (tag, fh.tell()))
-        name_size = struct.unpack('>i', fh.read(4))[0]
-        name = fh.read(name_size)[:-1]
-        # print name_size, repr(name)
 
-        mask = 3
-        padded = (name_size + mask) & (~mask)            
-        padding = padded - name_size
-        if padding:
-            fh.seek(padding, 1)
-        
-        tag = fh.read(4)
-        if tag != 'SIZE':
-            raise ValueError('bad SIZE tag %r @ %x' % (tag, fh.tell()))
-        data_size_size = struct.unpack('>i', fh.read(4))[0]
-        if data_size_size != 4:
-            raise ValueError('bad size size %r @ %x' % (data_size_size, fh.tell()))
-        data_size = struct.unpack('>i', fh.read(data_size_size))[0]
-        
-        data[name] = data_size
-
-        tag = fh.read(4)
-        if tag != 'FVCA':
-            raise ValueError('bad FVCA tag %r @ %x' % (tag, fh.tell()))
-            
-        fh.seek(12 * data_size + 4, 1)
-        
-    return data
-    
 class ComboBox(QtGui.QComboBox):
     
     def itemData(self, index):
@@ -229,9 +170,9 @@ class Geometry(QtGui.QWidget):
         self.layout().setContentsMargins(0, 0, 0, 0)
         self.setContentsMargins(0, 0, 0, 0)
         
-        self._mapping_button = QtGui.QPushButton(silk_icon('arrow_switch', 12), "Mapping: Exact (3/3)")
+        self._mapping_button = QtGui.QPushButton(silk_icon('arrow_switch', 12), "Edit")
         self._mapping_button.clicked.connect(self._on_mapping_clicked)
-        self._mapping_button.setFixedSize(QtCore.QSize(150, 22))
+        self._mapping_button.setFixedSize(QtCore.QSize(60, 22))
         self._main_layout.addWidget(self._mapping_button)
         
         self._delete_button = QtGui.QPushButton(silk_icon('delete', 12), "Delete")
@@ -299,16 +240,21 @@ class Geometry(QtGui.QWidget):
         self._mapping_box.setLayout(layout)
         
         cache_path = self.parent().cachePath()
-        channels = parse_cache(cache_path)
+        try:
+            channels = mcc.get_channels(cache_path)
+        except mcc.ParseError as e:
+            cmds.warning('Could not parse MCC for channel data; %r' % e)
+            channels = cmds.cacheFile(q=True, fileName=cache_path, channelName=True)
+            channels = [(c, None) for c in channels]
         shapes = dict((shape, cmds.getAttr(shape + '.vrts', size=True)) for shape in self.meshes())
         
-        for row, (channel, channel_point_count) in enumerate(sorted(channels.iteritems())):
+        for row, (channel, channel_point_count) in enumerate(sorted(channels)):
 
             combobox = ChannelMapping(channel, self)
             combobox.setMaximumHeight(20)
             combobox.addItem('<None>')
             for shape, shape_point_count in sorted(shapes.iteritems()):
-                if channel_point_count != shape_point_count:
+                if channel_point_count is not None and channel_point_count != shape_point_count:
                     continue
                 if comparison_name(channel) == comparison_name(shape):
                     combobox.addItem(silk_icon('asterisk_orange', 10), self._node_display_name(shape), dict(shape=shape))
@@ -942,13 +888,21 @@ class Dialog(QtGui.QDialog):
             cmds.select(original_selection, replace=True)
         else:
             cmds.select(clear=True)
-            
-__also_reload__ = ['ks.core.scene_name.core']
+
+
+__also_reload__ = [
+    'ks.core.scene_name.core',
+    'ks.maya.mcc',
+]
+
+
 def __before_reload__():
     if dialog:
         dialog.close()
 
+
 dialog = None
+
 
 def run():
     
