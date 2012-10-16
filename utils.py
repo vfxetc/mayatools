@@ -4,6 +4,7 @@ from maya import cmds, mel
 
 from ks.maya import mcc
 
+
 def get_cache_channels(cache_path):
     if cache_path is None:
         return []

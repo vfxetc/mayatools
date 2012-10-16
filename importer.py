@@ -880,9 +880,13 @@ class Dialog(QtGui.QDialog):
         
         # Find the existing stuff.
         path_to_connections = {}
+        malformed_transforms = set()
         for cache_node, cache_path, channel, transform, shape in utils.iter_existing_cache_connections():
             # Ignore the malformed ones for now.
             if shape is None:
+                if transform not in malformed_transforms:
+                    print '# Ignoring existing cache attached to %r' % transform
+                malformed_transforms.add(transform)
                 continue
             path_to_connections.setdefault(cache_path, []).append((
                 cache_node, channel, transform, shape
@@ -904,7 +908,8 @@ class Dialog(QtGui.QDialog):
         # much of the problem as I think that I can without doing the full
         # import ourselves.
         
-        # Delete stray caches.
+        # Delete stray caches. Malformed connections won't be in this dict so
+        # they will not be destroyed.
         for cache_path, connections in path_to_connections.iteritems():
             if cache_path not in geocaches:
                 for cache_node, channel, transform, shape in connections:
@@ -935,6 +940,9 @@ class Dialog(QtGui.QDialog):
             
             # Schedule new cache connections.
             for transform, channels in transform_to_channels.iteritems():
+                # Skip ones which involve malformed transforms.
+                if transform in malformed_transforms:
+                    continue
                 for channel in channels:
                     to_import.append((cache_path, transform, channel))
         
