@@ -547,10 +547,10 @@ class Geocache(QtGui.QGroupBox):
         
         task = tasks[0]
         entity = task.parent()
+        entities = []
         
         # Populate shot combo with all reuses that match the current workspace.
         if entity['type'] == 'Shot':
-            entities = []
             seq = entity.parent()
             seq_path = sgfs.path_for_entity(seq)
             for shot_path, shot in sgfs.entities_in_directory(seq_path, "Shot", load_tags=None):
