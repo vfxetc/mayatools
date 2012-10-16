@@ -916,6 +916,7 @@ class Dialog(QtGui.QDialog):
                     utils.delete_cache(cache_node)
         
         to_import = []
+        to_connect = []
         for cache_path, geocache in geocaches.iteritems():
             # Get the mapping from shapes to channels, and turn it into
             # transforms to channels since we want to treat the potential
@@ -923,6 +924,7 @@ class Dialog(QtGui.QDialog):
             transform_to_channels = {}
             for shape, channel in geocache.iterMapping():
                 transform = utils.get_transform(shape)
+                to_connect.append(transform)
                 transform_to_channels.setdefault(transform, []).append(channel)
             
             # Clean up the existing ones.
@@ -952,6 +954,26 @@ class Dialog(QtGui.QDialog):
             mel.eval('doImportCacheFile("%s", "Best Guess", {"%s"}, {"%s"})' % (
                 cache_path, transform, channel,
             ))
+        
+        # Create "Render Stats" connections.
+        for transform in to_connect:
+            shapes = cmds.listRelatives(transform, shapes=True)
+            if len(shapes) == 2:
+                orig, deformed = shapes
+                for name in ('castsShadows', 'receiveShadows', 'motionBlur',
+                    'primaryVisibility', 'smoothShading', 'visibleInReflections',
+                    'visibleInRefractions', 'doubleSided', 'opposite'
+                ):
+                    from_attr = orig + '.' + name
+                    to_attr = deformed + '.' + name
+                    existing = cmds.connectionInfo(to_attr, sourceFromDestination=True)
+                    if existing and existing != from_attr:
+                        cmds.warning('Unknown connection from %r to %r' % (existing, to_attr))
+                        continue
+                    if not existing:
+                        cmds.connectAttr(from_attr, to_attr)
+            else:
+                cmds.warning('Expected 2 shapes under %r; found %r' % (transform, shapes))
         
         # Restore selection.
         if original_selection:
