@@ -8,7 +8,7 @@ Qt = QtCore.Qt
 
 from maya import cmds, mel
 
-from ks.core.scene_name.widget import SceneNameWidget
+import ks.core.scene_name.widget as scene_name
 
 
 class GroupCheckBox(QtGui.QCheckBox):
@@ -158,7 +158,7 @@ class Dialog(QtGui.QDialog):
         box.setLayout(QtGui.QVBoxLayout())
         self.layout().addWidget(box)
     
-        self._scene_name = SceneNameWidget({
+        self._scene_name = scene_name.SceneNameWidget({
             'scenes_name': 'data/geo_cache',
             'sub_directory': '',
             'extension': '',
