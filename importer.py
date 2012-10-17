@@ -12,7 +12,7 @@ import ks.core.scene_name.widget as scene_name
 from ks.core import product_select
 
 
-class CameraSelector(product_select.Widget):
+class CameraSelector(product_select.Layout):
     
     def _setup_sections(self):
         super(CameraSelector, self)._setup_sections()
@@ -43,7 +43,7 @@ class Dialog(QtGui.QDialog):
         self.setLayout(QtGui.QVBoxLayout())
         
         self._selector = CameraSelector()
-        self.layout().addWidget(self._selector)
+        self.layout().addLayout(self._selector)
 
 
 __also_reload__ = [
