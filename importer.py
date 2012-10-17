@@ -635,6 +635,17 @@ class Geocache(QtGui.QGroupBox):
                 for name in os.listdir(path):
                     self._cache_combo.addItem(name, dict(path=os.path.join(path, name), name=name))
         
+        # Select the most recent version/revision.
+        def get_version(index):
+            name = self._cache_combo.itemText(index)
+            m = re.search('v(\d+)(?:_r(\d+))?', name)
+            if m:
+                key = tuple(int(x or 0) for x in m.groups()) + (name, )
+                return key
+            return (0, 0, name)
+        highest = max(xrange(self._cache_combo.count()), key=get_version)
+        self._cache_combo.setCurrentIndex(highest)
+        
         self._populate_object_combo()
     
     def _on_cache_changed(self, index=None):
