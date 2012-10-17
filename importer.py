@@ -440,9 +440,10 @@ class Selection(Geometry):
 
 class Geocache(QtGui.QGroupBox):
     
-    def __init__(self):
+    def __init__(self, dialog):
         super(Geocache, self).__init__()
-                
+        self._dialog = dialog
+        
         #: Mapping of shape nodes to channels.
         self._mapping = {}
         
@@ -519,6 +520,11 @@ class Geocache(QtGui.QGroupBox):
         
         button_layout.addStretch()
         
+        button = QtGui.QPushButton(silk_icon('cross', 12), "")
+        button.clicked.connect(self._on_ignore_button)
+        button.setFixedSize(button.sizeHint().boundedTo(QtCore.QSize(1000, 22)))
+        button_layout.addWidget(button)
+        
         # Mappings.
         self._mapping_layout = QtGui.QFormLayout()
         self.layout().addLayout(self._mapping_layout)
@@ -534,6 +540,18 @@ class Geocache(QtGui.QGroupBox):
         self._geometry.append(geo)
         self._geometry_layout.addWidget(geo)
     
+    def _on_ignore_button(self):
+        if cmds.confirmDialog(
+            title="Ignore Geocache?",
+            message="If you ignore this geocache it will not be unlinked.",
+            button=["Cancel", "Ignore"],
+            defaultButton="Ignore",
+        ) != "Ignore":
+            return
+        self.destroy()
+        self.hide()
+        self._dialog._geocaches.remove(self)
+        
     def _populate_entity_combo(self):
         
         self._entity_combo.clear()
@@ -874,7 +892,7 @@ class Dialog(QtGui.QDialog):
             if not mapping:
                 continue
         
-            geocache = Geocache()
+            geocache = Geocache(self)
             geocache.setCachePath(cache_path)
             geocache.setMapping(mapping)
             
@@ -885,7 +903,7 @@ class Dialog(QtGui.QDialog):
             self._on_add_geocache()
     
     def _on_add_geocache(self):
-        geocache = Geocache()
+        geocache = Geocache(self)
         self._geocaches.append(geocache)
         self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, geocache)
     
