@@ -541,13 +541,6 @@ class Geocache(QtGui.QGroupBox):
         self._geometry_layout.addWidget(geo)
     
     def _on_ignore_button(self):
-        if cmds.confirmDialog(
-            title="Ignore Geocache?",
-            message="If you ignore this geocache it will not be unlinked.",
-            button=["Cancel", "Ignore"],
-            defaultButton="Ignore",
-        ) != "Ignore":
-            return
         self.destroy()
         self.hide()
         self._dialog._geocaches.remove(self)

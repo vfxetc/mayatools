@@ -51,6 +51,8 @@ def get_reference_namespace(reference):
             name = nodes[0]
             name = name.split('|', 1)[0]
             namespace = name.rsplit(':', 1)[0]
+        else:
+            namespace = None
     if namespace:
         return namespace.strip(':')
         
