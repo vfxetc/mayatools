@@ -12,7 +12,9 @@ from maya import cmds, mel
 
 from sgfs import SGFS
 
-from ks.core.scene_name.core import SceneName
+import ks.core.scene_name.core as scene_name
+from ks.core import product_select
+
 from . import utils
 
 
@@ -438,6 +440,46 @@ class Selection(Geometry):
         return self.selection()
 
 
+class CacheSelector(product_select.Layout):
+    
+    def _setup_sections(self):
+        super(CacheSelector, self)._setup_sections()
+        self.register_section('Cache', self._iter_caches)
+        self.register_section('Object', self._iter_objects)
+    
+    def _iter_cameras(self, step_path):
+        if step_path is None:
+            return
+        camera_dir = os.path.join(step_path, 'maya', 'scenes', 'camera')
+        if os.path.exists(camera_dir):
+            for name in os.listdir(camera_dir):
+                if not name.startswith('.') and name.endswith('.ma'):
+                    yield name, os.path.join(camera_dir, name), 0
+    
+    def _iter_caches(self, task_path):
+        if not task_path:
+            return
+        
+        for geo_cache_name in ('geocache', 'geo_cache', 'geoCache'):
+            path = os.path.join(task_path, 'maya', 'data', geo_cache_name)
+            if os.path.exists(path):
+                for name in os.listdir(path):
+                    m = re.search('v(\d+)(?:_r(\d+))?', name)
+                    if m:
+                        key = tuple(int(x or 0) for x in m.groups()) + (name, )
+                    else:
+                        key = (0, 0, name)
+                    yield name, os.path.join(path, name), key
+    
+    def _iter_objects(self, path):
+        if not path:
+            return
+        if os.path.exists(path):
+            for name in os.listdir(path):
+                xml_path = os.path.join(path, name, name + '.xml')
+                yield name, xml_path, 0
+
+
 class Geocache(QtGui.QGroupBox):
     
     def __init__(self, dialog):
@@ -459,42 +501,10 @@ class Geocache(QtGui.QGroupBox):
         
         ## Cache widgets
 
-        self._cache_layout = QtGui.QHBoxLayout()
-        self.layout().addLayout(self._cache_layout)
+        self._cache_selector = CacheSelector()
+        self._cache_selector.path_changed = lambda path: self._cache_changed()
         
-        self._entity_combo = ComboBox()
-        self._populate_entity_combo()        
-        self._entity_combo.activated.connect(self._on_entity_changed)
-        self._entity_pair = Labeled("Entity", self._entity_combo)
-        self._cache_layout.addLayout(self._entity_pair)
-            
-        self._step_combo = ComboBox()
-        self._step_combo.activated.connect(self._on_step_changed)
-        self._step_pair = Labeled("Step", self._step_combo)
-        self._cache_layout.addLayout(self._step_pair)
-        
-        self._cache_combo = ComboBox()
-        self._cache_combo.activated.connect(self._on_cache_changed)
-        self._cache_pair = Labeled("Cache", self._cache_combo)
-        self._cache_layout.addLayout(self._cache_pair)
-        
-        self._object_combo = ComboBox()
-        self._object_combo.activated.connect(self._on_object_changed)
-        self._object_pair = Labeled("Object", self._object_combo)
-        self._cache_layout.addLayout(self._object_pair)
-        
-        self._cache_field = QtGui.QLineEdit()
-        # self._cache_field.editingFinished.connect(self._populate_reference_combo)
-        self._cache_field_pair = Labeled("Path to Custom Geocache", self._cache_field)
-        self._cache_layout.addLayout(self._cache_field_pair)
-        
-        self._cache_browse_button = QtGui.QPushButton(silk_icon('folder', 12), "Browse")
-        self._cache_browse_button.setMaximumSize(QtCore.QSize(75, 20))
-        self._cache_browse_button.clicked.connect(self._on_cache_browse)
-        self._cache_browse_button_pair = Labeled("", self._cache_browse_button)
-        self._cache_layout.addLayout(self._cache_browse_button_pair)
-        
-        self._on_entity_changed()
+        self.layout().addLayout(self._cache_selector)
         
         ## Geometry widgets
         
@@ -544,230 +554,16 @@ class Geocache(QtGui.QGroupBox):
         self.destroy()
         self.hide()
         self._dialog._geocaches.remove(self)
-        
-    def _populate_entity_combo(self):
-        
-        self._entity_combo.clear()
-        
-        workspace = cmds.workspace(q=True, directory=True)
-        tasks = sgfs.entities_from_path(workspace)
-        if not tasks or tasks[0]['type'] != 'Task':
-            cmds.warning('Workspace does not have any tasks; %r -> %r' % (workspace, tasks))
-            self._entity_combo.addItem('Custom')
-            return
-        
-        task = tasks[0]
-        entity = task.parent()
-        entities = []
-        
-        # Populate shot combo with all reuses that match the current workspace.
-        if entity['type'] == 'Shot':
-            seq = entity.parent()
-            seq_path = sgfs.path_for_entity(seq)
-            for shot_path, shot in sgfs.entities_in_directory(seq_path, "Shot", load_tags=None):
-                if shot.fetch('code').startswith(entity.fetch('code')[:6]):
-                    entities.append((
-                        shot['code'], shot_path, shot
-                    ))
-        
-        elif entity['type'] == 'Asset':
-            entities.append((
-                entity['code'], sgfs.path_for_entity(entity), entity
-            ))
-        
-        else:
-            cmds.warning('Cannot extract entities from %r' % entity)
-        
-        for name, path, entity in entities:
-            self._entity_combo.addItem(name, dict(
-                name=name,
-                path=path,
-                entity=entity
-            ))
-        self._entity_combo.addItem('Custom')
-        
-    def _populate_step_combo(self):
-        
-        self._step_combo.clear()
-        
-        data = self._entity_combo.currentData()
-        if not data:
-            return
-        entity_paty, entity = data['path'], data['entity']
-        
-        steps = set()
-        for task_path, task in sgfs.entities_in_directory(entity_paty, 'Task', load_tags=None):
-            
-            # Only add one of every step.
-            step = task['step']['code']
-            if step in steps:
-                continue
-            steps.add(step)
-            
-            self._step_combo.addItem(step, (task_path, ))
-            if task['step']['code'].lower().startswith('anim'):
-                self._step_combo.setCurrentIndex(self._step_combo.count() - 1)
-
-    def _on_entity_changed(self, index=None):
-        
-        shot = self._entity_combo.currentData()
-        is_custom = shot is None
-        
-        self._cache_field_pair.setVisible(is_custom)
-        self._cache_browse_button_pair.setVisible(is_custom)
-        
-        self._step_pair.setVisible(not is_custom)
-        self._cache_pair.setVisible(not is_custom)
-        self._object_pair.setVisible(not is_custom)
-        
-        if is_custom:
-            pass
-            # self._populate_reference_combo()
-        else:
-            self._populate_step_combo()
-            self._on_step_changed()
     
-    def _on_step_changed(self, index=None):
-        self._populate_cache_combo()
-        
-    def _populate_cache_combo(self):
-        
-        self._cache_combo.clear()
-        self._cache_combo.addItem('Select...')
-        
-        data = self._step_combo.currentData()
-        if not data:
-            return
-        task_path = data[0]
-        
-        for geo_cache_name in ('geocache', 'geo_cache', 'geoCache'):
-            path = os.path.join(task_path, 'maya', 'data', geo_cache_name)
-            if os.path.exists(path):
-                for name in os.listdir(path):
-                    self._cache_combo.addItem(name, dict(path=os.path.join(path, name), name=name))
-        
-        # Select the most recent version/revision.
-        def get_version(index):
-            name = self._cache_combo.itemText(index)
-            m = re.search('v(\d+)(?:_r(\d+))?', name)
-            if m:
-                key = tuple(int(x or 0) for x in m.groups()) + (name, )
-                return key
-            return (0, 0, name)
-        highest = max(xrange(self._cache_combo.count()), key=get_version)
-        self._cache_combo.setCurrentIndex(highest)
-        
-        self._populate_object_combo()
-    
-    def _on_cache_changed(self, index=None):
-        if self._cache_combo.itemText(0) == 'Select...':
-            if index:
-                self._cache_combo.removeItem(0)
-            else:
-                return
-        self._populate_object_combo()
-    
-    def _populate_object_combo(self):
-        
-        previous = self._object_combo.currentData() or {}
-        
-        self._object_combo.clear()
-        
-        data = self._cache_combo.currentData()
-        if not data:
-            return
-        path, name = data['path'], data['name']
-        
-        if os.path.exists(path):
-            for name in os.listdir(path):
-                obj_path = os.path.join(path, name)
-                self._object_combo.addItem(name, dict(path=obj_path, name=name))
-                if obj_path == previous.get('path'):
-                    self._object_combo.setCurrentIndex(self._object_combo.count() - 1)
-        
-        current = self._object_combo.currentData()
-        if not current:
-            self._object_combo.setCurrentIndex(self._object_combo.count() - 1)
-            current = self._object_combo.currentData() or {}
-        if not previous.get('path') or previous.get('path') != current.get('path'):
-            self._on_object_changed()
-    
-    def _on_object_changed(self, index=None):
+    def _cache_changed(self):
         for geo in self._geometry:
             geo._cache_changed()
-
-    def _on_cache_browse(self):
-        file_name = str(QtGui.QFileDialog.getOpenFileName(self, "Select Geocache", os.getcwd(), "Geocaches (*.xml)"))
-        if not file_name:
-            return
-
-        workspace = cmds.workspace(q=True, directory=True)
-        relative = os.path.relpath(file_name, workspace)
-        if relative.startswith('.'):
-            self._cache_field.setText(file_name)
-        else:
-            self._cache_field.setText(relative)
-        
+    
     def cachePath(self):
-        
-        workspace = cmds.workspace(q=True, directory=True)
-        entity_data = self._entity_combo.currentData()
-                
-        if not entity_data:
-            relative = str(self._cache_field.text())
-            if not relative:
-                return
-            path = os.path.join(workspace, relative)
-        
-        else:
-            data = self._object_combo.currentData()
-            if not data:
-                return None
-            path, name = data['path'], data['name']
-            path = os.path.join(path, name + '.xml')
-        
-        if not os.path.exists(path):
-            cmds.warning('Could not find cache: %r' % path)
-            return
-        
-        return path
+        return self._cache_selector.path()
     
     def setCachePath(self, path):
-        
-        # If we can seperate all the data out, then do so.
-        entities = sgfs.entities_from_path(path)
-        if entities and entities[0]['type'] == 'Task':
-            task = entities[0]
-            shot = task.parent()
-            if shot['type'] == 'Shot':
-                task_path = sgfs.path_for_entity(task)
-                relative = os.path.relpath(path, task_path)
-                m = re.match(r'maya/data/(geocache|geo_cache|geoCache)/(\w+)/(\w+)/\3.xml', relative)
-                if m:
-                    _, cache_name, object_name = m.groups()
-                    shot_i = self._entity_combo.indexWithText(shot['code'])
-                    if shot_i is None:
-                        self._entity_combo.insertItem(0, shot['code'], (sgfs.path_for_entity(shot), shot))
-                        shot_i = 0
-                    # Assume that the combos automatically trigger the next
-                    # the automatically populate.
-                    self._entity_combo.setCurrentIndex(shot_i)
-                    self._populate_step_combo()
-                    self._step_combo.setCurrentIndex(self._step_combo.indexWithText(task['step']['code']))
-                    self._populate_cache_combo()
-                    self._cache_combo.setCurrentIndex(self._cache_combo.indexWithText(cache_name))
-                    self._populate_object_combo()
-                    self._object_combo.setCurrentIndex(self._object_combo.indexWithText(object_name))
-                    return
-        
-        self._entity_combo.setCurrentIndex(self._entity_combo.count() - 1)
-        self._on_entity_changed()
-        workspace = cmds.workspace(q=True, directory=True)
-        relative = os.path.relpath(path, workspace)
-        if relative.startswith('.'):
-            self._cache_field.setText(path)
-        else:
-            self._cache_field.setText(relative)
+        self._cache_selector.setPath(path)
     
     def channels(self):
         cache_path = self.cachePath()
@@ -1017,6 +813,7 @@ class Dialog(QtGui.QDialog):
 
 __also_reload__ = [
     'ks.core.scene_name.core',
+    'ks.core.product_select',
     'ks.maya.geocache.utils',
 ]
 
