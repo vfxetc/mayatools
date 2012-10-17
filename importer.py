@@ -584,8 +584,16 @@ class Geocache(QtGui.QGroupBox):
             return
         entity_paty, entity = data['path'], data['entity']
         
+        steps = set()
         for task_path, task in sgfs.entities_in_directory(entity_paty, 'Task', load_tags=None):
-            self._step_combo.addItem(task['step']['code'], (task_path, task))
+            
+            # Only add one of every step.
+            step = task['step']['code']
+            if step in steps:
+                continue
+            steps.add(step)
+            
+            self._step_combo.addItem(step, (task_path, ))
             if task['step']['code'].lower().startswith('anim'):
                 self._step_combo.setCurrentIndex(self._step_combo.count() - 1)
 
@@ -619,7 +627,7 @@ class Geocache(QtGui.QGroupBox):
         data = self._step_combo.currentData()
         if not data:
             return
-        task_path, task = data
+        task_path = data[0]
         
         for geo_cache_name in ('geocache', 'geo_cache', 'geoCache'):
             path = os.path.join(task_path, 'maya', 'data', geo_cache_name)
