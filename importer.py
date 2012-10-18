@@ -26,9 +26,6 @@ class CameraSelector(product_select.Layout):
             for name in os.listdir(camera_dir):
                 if not name.startswith('.') and name.endswith('.ma'):
                     yield name, os.path.join(camera_dir, name), 0
-    
-    def path_changed(self, path):
-        print 'NEW PATH', repr(path)
 
 
 class Dialog(QtGui.QDialog):
@@ -44,6 +41,16 @@ class Dialog(QtGui.QDialog):
         
         self._selector = CameraSelector(parent=self)
         self.layout().addLayout(self._selector)
+        
+        button = QtGui.QPushButton("Reference")
+        button.clicked.connect(self._on_reference)
+        self.layout().addWidget(button)
+    
+    def _on_reference(self, *args):
+        path = self._selector.path()
+        if path:
+            cmds.file(path, reference=True)
+        self.close()
 
 
 __also_reload__ = [
