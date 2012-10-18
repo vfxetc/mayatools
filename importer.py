@@ -442,27 +442,14 @@ class Selection(Geometry):
 
 class CacheSelector(product_select.Layout):
     
-    def __init__(self, *args, **kwargs):
-        super(CacheSelector, self).__init__(
-            *args,
-            browse_name='Geocache',
-            browse_filter='Geocache (*.xml)',
-            **kwargs
-        )
-    
     def _setup_sections(self):
         super(CacheSelector, self)._setup_sections()
         self.register_section('Cache', self._iter_caches)
         self.register_section('Object', self._iter_objects)
     
-    def _iter_cameras(self, step_path):
-        if step_path is None:
-            return
-        camera_dir = os.path.join(step_path, 'maya', 'scenes', 'camera')
-        if os.path.exists(camera_dir):
-            for name in os.listdir(camera_dir):
-                if not name.startswith('.') and name.endswith('.ma'):
-                    yield name, os.path.join(camera_dir, name), 0
+    def _browse(self):
+        files = cmds.fileDialog2(fileFilter="Geocache (*.xml)", dialogStyle=2, fileMode=1)
+        return files[0] if files else None
     
     def _iter_caches(self, task_path):
         if not task_path:
