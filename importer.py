@@ -713,8 +713,14 @@ class Dialog(QtGui.QDialog):
                 cache_node, channel, transform, shape
             ))
         
+        # Remember current state.
         original_selection = cmds.ls(sl=True)
+        original_render_layer = cmds.editRenderLayerGlobals(q=True, currentRenderLayer=True)
         
+        # Work on the default render layer.
+        if original_render_layer != 'defaultRenderLayer':
+            cmds.editRenderLayerGlobals(currentRenderLayer='defaultRenderLayer')
+            
         # Get all the caches.
         geocaches = {}
         for geocache in self._geocaches:
@@ -796,6 +802,10 @@ class Dialog(QtGui.QDialog):
             else:
                 cmds.warning('Expected 2 shapes under %r; found %r' % (transform, shapes))
         
+        # Restore render layer.
+        if original_render_layer != 'defaultRenderLayer':
+            cmds.editRenderLayerGlobals(currentRenderLayer=original_render_layer)
+            
         # Restore selection.
         if original_selection:
             try:
