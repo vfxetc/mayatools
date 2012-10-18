@@ -24,8 +24,23 @@ class CameraSelector(product_select.Layout):
         camera_dir = os.path.join(step_path, 'maya', 'scenes', 'camera')
         if os.path.exists(camera_dir):
             for name in os.listdir(camera_dir):
-                if not name.startswith('.') and name.endswith('.ma'):
-                    yield name, os.path.join(camera_dir, name), 0
+                
+                if name.startswith('.'):
+                    continue
+                if not name.endswith('.ma'):
+                    continue
+                if re.search(r'\.20\d{2}\.ma$', name):
+                    continue
+                
+                cam_path = os.path.join(camera_dir, name)
+                try:
+                    ref_node = cmds.referenceQuery(cam_path, referenceNode=True)
+                except RuntimeError:
+                    pass
+                else:
+                    name += ' (already referenced)'
+                
+                yield name, cam_path, 0
 
 
 class Dialog(QtGui.QDialog):
@@ -49,6 +64,13 @@ class Dialog(QtGui.QDialog):
     def _on_reference(self, *args):
         path = self._selector.path()
         if path:
+            try:
+                ref_node = cmds.referenceQuery(path, referenceNode=True)
+            except RuntimeError:
+                pass
+            else:
+                cmds.warning('Already referenced')
+                return
             cmds.file(path, reference=True)
         self.close()
 
