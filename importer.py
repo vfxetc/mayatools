@@ -442,6 +442,11 @@ class Selection(Geometry):
 
 class CacheSelector(product_select.Layout):
     
+    def __init__(self):
+        super(CacheSelector, self).__init__(
+            browse_name='Geocache',
+            browse_filter='Geocache (*.xml)',
+        )
     def _setup_sections(self):
         super(CacheSelector, self)._setup_sections()
         self.register_section('Cache', self._iter_caches)
