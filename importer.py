@@ -32,6 +32,11 @@ class CameraSelector(product_select.Layout):
                 if re.search(r'\.20\d{2}\.ma$', name):
                     continue
                 
+                m = re.search(r'v(\d+)(?:_r(\d+))?', name)
+                if m:
+                    priority = tuple(int(x) for x in m.groups())
+                else:
+                    priority = (0, 0)
                 cam_path = os.path.join(camera_dir, name)
                 try:
                     ref_node = cmds.referenceQuery(cam_path, referenceNode=True)
@@ -39,8 +44,9 @@ class CameraSelector(product_select.Layout):
                     pass
                 else:
                     name += ' (already referenced)'
+                    priority = (-1, 0)
                 
-                yield name, cam_path, 0
+                yield name, cam_path, priority
 
 
 class Dialog(QtGui.QDialog):
