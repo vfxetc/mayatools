@@ -127,12 +127,34 @@ class Dialog(QtGui.QDialog):
         
         # Rewrite the file to work with 2011.
         if maya_version > 2011:
+            
+            # Track if the last command was to create an image plane.
+            in_image_plane = False
+            
             fh = open(path, 'w')
             for line in open(export_path):
+                
+                # Strip all requires, but add a 2011 requires.
                 if line.startswith('requires'):
                     if line.startswith('requires maya'):
                         fh.write('requires maya "2011";\n')
+                
+                # Strip '-p' off of image planes.
+                elif line.startswith('createNode imagePlane'):
+                    in_image_plane = True
+                    line = re.sub(r'\s*-p "[^"]+"', '', line)
+                    fh.write(line)
+                
+                # Strip this setAttr from image planes.
+                elif in_image_plane and line.strip() == 'setAttr -k off ".v";':
+                    continue
+                
                 else:
+                    
+                    # This is a new command.
+                    if line and not line[0].isspace():
+                        in_image_plane = False
+                    
                     fh.write(line)
             
         if original_selection:
