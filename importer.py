@@ -42,7 +42,7 @@ class Dialog(QtGui.QDialog):
         self.setWindowTitle("Camera Import")
         self.setLayout(QtGui.QVBoxLayout())
         
-        self._selector = CameraSelector()
+        self._selector = CameraSelector(parent=self)
         self.layout().addLayout(self._selector)
 
 
