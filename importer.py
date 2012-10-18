@@ -442,11 +442,14 @@ class Selection(Geometry):
 
 class CacheSelector(product_select.Layout):
     
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         super(CacheSelector, self).__init__(
+            *args,
             browse_name='Geocache',
             browse_filter='Geocache (*.xml)',
+            **kwargs
         )
+    
     def _setup_sections(self):
         super(CacheSelector, self)._setup_sections()
         self.register_section('Cache', self._iter_caches)
@@ -506,7 +509,7 @@ class Geocache(QtGui.QGroupBox):
         
         ## Cache widgets
 
-        self._cache_selector = CacheSelector()
+        self._cache_selector = CacheSelector(parent=self)
         self._cache_selector.path_changed = lambda path: self._cache_changed()
         
         self.layout().addLayout(self._cache_selector)
