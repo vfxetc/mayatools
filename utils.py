@@ -5,6 +5,9 @@ from maya import cmds, mel
 from ks.maya import mcc
 
 
+__also_reload__ = ['ks.maya.mcc']
+
+
 def get_cache_channels(cache_path):
     if cache_path is None:
         return []
@@ -185,3 +188,4 @@ def get_existing_cache_mappings():
         mapping = mappings.setdefault(cache_path, {})
         mapping[shape] = channel
     return mappings
+
