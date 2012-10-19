@@ -624,10 +624,10 @@ class Dialog(QtGui.QDialog):
     def __init__(self):
         super(Dialog, self).__init__()
         self._geocaches = []
-        self._init_ui()
+        self._setup_ui()
         self._populate_existing()
     
-    def _init_ui(self):
+    def _setup_ui(self):
         self.setWindowTitle('Geocache Import')
         self.setWindowFlags(Qt.Tool)
         self.setMinimumWidth(900)
@@ -650,19 +650,23 @@ class Dialog(QtGui.QDialog):
         button_layout = QtGui.QHBoxLayout()
         main_layout.addLayout(button_layout)
         
-        self._link_button = button = QtGui.QPushButton("Add Geocache...")
+        button = QtGui.QPushButton("Add Geocache...")
         button.setMinimumSize(button.sizeHint().expandedTo(QtCore.QSize(100, 0)))
         button_layout.addWidget(button)
         button.clicked.connect(self._on_add_geocache)
         
+        self._sync_timeline_checkbox = QtGui.QCheckBox("Sync Timeline")
+        self._sync_timeline_checkbox.setChecked(True)
+        button_layout.addWidget(self._sync_timeline_checkbox)
+        
         button_layout.addStretch()
         
-        self._apply_button = button = QtGui.QPushButton("Apply")
+        button = QtGui.QPushButton("Apply")
         button.setMinimumSize(button.sizeHint().expandedTo(QtCore.QSize(100, 0)))
         button_layout.addWidget(button)
         button.clicked.connect(self._on_apply_clicked)
         
-        self._save_button = button = QtGui.QPushButton("Save")
+        button = QtGui.QPushButton("Save")
         button.setMinimumSize(button.sizeHint().expandedTo(QtCore.QSize(100, 0)))
         button_layout.addWidget(button)
         button.clicked.connect(self._on_save_clicked)
@@ -720,7 +724,8 @@ class Dialog(QtGui.QDialog):
         # Work on the default render layer.
         if original_render_layer != 'defaultRenderLayer':
             cmds.editRenderLayerGlobals(currentRenderLayer='defaultRenderLayer')
-            
+        
+        
         # Get all the caches.
         geocaches = {}
         for geocache in self._geocaches:
@@ -801,6 +806,22 @@ class Dialog(QtGui.QDialog):
                         cmds.connectAttr(from_attr, to_attr)
             else:
                 cmds.warning('Expected 2 shapes under %r; found %r' % (transform, shapes))
+        
+        # Set the timeline and render range.
+        if self._sync_timeline_checkbox.isChecked():
+            min_time = sys.maxint
+            max_time = -sys.maxint
+            for cache_node, cache_path, channel, transform, shape in utils.iter_existing_cache_connections():
+                if not shape:
+                        continue
+                min_time = min(min_time, cmds.getAttr(cache_node + '.originalStart'))
+                max_time = max(max_time, cmds.getAttr(cache_node + '.originalEnd'))
+            if min_time != sys.maxint:
+                cmds.playbackOptions(minTime=min_time)
+                cmds.playbackOptions(maxTime=max_time)
+                cmds.setAttr('defaultRenderGlobals.startFrame', min_time)
+                cmds.setAttr('defaultRenderGlobals.endFrame', max_time)
+                print '# Setting playback and render range: %s to %s' % (min_time, max_time)
         
         # Restore render layer.
         if original_render_layer != 'defaultRenderLayer':
