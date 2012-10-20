@@ -817,6 +817,8 @@ class Dialog(QtGui.QDialog):
                 min_time = min(min_time, cmds.getAttr(cache_node + '.originalStart'))
                 max_time = max(max_time, cmds.getAttr(cache_node + '.originalEnd'))
             if min_time != sys.maxint:
+                cmds.playbackOptions(animationStartTime=min_time)
+                cmds.playbackOptions(animationEndTime=max_time)
                 cmds.playbackOptions(minTime=min_time)
                 cmds.playbackOptions(maxTime=max_time)
                 cmds.setAttr('defaultRenderGlobals.startFrame', min_time)
