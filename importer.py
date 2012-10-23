@@ -467,12 +467,28 @@ class CacheSelector(product_select.Layout):
                     yield name, os.path.join(path, name), key
     
     def _iter_objects(self, path):
+        
         if not path:
             return
+        
         if os.path.exists(path):
             for name in os.listdir(path):
+                
+                # Most caches have the XML names the same as the object.
                 xml_path = os.path.join(path, name, name + '.xml')
-                yield name, xml_path, 0
+                if os.path.exists(xml_path):
+                    yield name, xml_path, 0
+                    continue
+
+                # We need to look deeper for XMLs.
+                if not os.path.isdir(os.path.join(path, name)):
+                    continue
+                for leaf in os.listdir(os.path.join(path, name)):
+                    base, ext = os.path.splitext(leaf)
+                    if ext != '.xml':
+                        continue
+                    yield os.path.join(name, base), os.path.join(path, name, leaf), 0
+                
 
 
 class Geocache(QtGui.QGroupBox):
