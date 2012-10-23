@@ -118,7 +118,7 @@ def iter_existing_cache_connections():
             switch_type = cmds.nodeType(switch)
             
         if switch_type != 'historySwitch':
-            cmds.warning('Unknown cache node layout; found %s %r' % (switch_type, switch))
+            cmds.warning('Unknown cache node layout; expected historySwitch, found %s %r' % (switch_type, switch))
             yield cache_node, cache_path, channel, None, None
             continue
         
@@ -129,17 +129,20 @@ def iter_existing_cache_connections():
             yield cache_node, cache_path, channel, None, None
             continue
         
-        # Pass through groupParts.
-        while True:
+        # Pass through groupParts. The control flow is a little wacky here, be
+        # careful.
+        while transform is not None:
             transform_type = cmds.nodeType(transform)
             if transform_type == 'groupParts':
-                transform = cmds.listConnections(transform + '.outputGeometry')[0]
-            elif transform_type == 'transform':
-                break
-            else:
-                cmds.warning('Unknown cache node layout; found %s %r' % (transform_type, transform))
-                yield cache_node, cache_path, channel, None, None
+                transform = (cmds.listConnections(transform + '.outputGeometry') or (None, ))[0]
                 continue
+            break
+        if transform is None:
+            transform_type = 'None'
+        if transform_type != 'transform':
+            cmds.warning('Unknown cache node layout; expected transform, found %s %r' % (transform_type, transform))
+            yield cache_node, cache_path, channel, None, None
+            continue
                 
         shapes = cmds.listRelatives(transform, children=True, shapes=True) or []
         
