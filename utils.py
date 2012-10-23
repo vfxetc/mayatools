@@ -123,7 +123,11 @@ def iter_existing_cache_connections():
             continue
         
         # The switch hooks onto a transform, but we want the shapes.
-        transform = cmds.listConnections(switch + '.outputGeometry[0]')[0]
+        transform = (cmds.listConnections(switch + '.outputGeometry[0]') or (None, ))[0]
+        if transform is None:
+            cmds.warning('Unknown cache node layout; nothing connected to %r' % switch)
+            yield cache_node, cache_path, channel, None, None
+            continue
         
         # Pass through groupParts.
         while True:
