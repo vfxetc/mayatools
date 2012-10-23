@@ -244,7 +244,7 @@ class Dialog(QtGui.QDialog):
                 members = cmds.sets(set_._path, q=True)
                 cmds.select(members, replace=True)
                 
-                name = set_._cache_name
+                name = set_._cache_name or '__cache__'
                 path = os.path.join(root, name)
                 if not os.path.exists(path):
                     os.makedirs(path)
@@ -296,7 +296,7 @@ def export_cache(path, name, frame_from, frame_to, world):
     ))
 
 
-__also_reload__ = ['ks.core.scene_name.widget']
+__also_reload__ = ['ks.core.scene_name.widget', 'ks.core.scene_name.core']
 def __before_reload__():
     if dialog:
         dialog.close()
