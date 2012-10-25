@@ -228,6 +228,11 @@ class Dialog(QtGui.QDialog):
         cmds.error('Not Implemented')
         
     def _on_process_button(self):
+        
+        total = sum(len(group._children) for group in self._groups.itervalues())
+        progress = QtGui.QProgressDialog("Exporting Geocaches...", "Cancel Export", 0, total, self)
+        progress.setWindowModality(Qt.WindowModal)
+        
         original_selection = cmds.ls(selection=True)
         
         frame_from = cmds.playbackOptions(q=True, minTime=True)
@@ -236,6 +241,7 @@ class Dialog(QtGui.QDialog):
         
         root = self._scene_name._namer.get_path()
         
+        current_i = 0
         for group in self._groups.itervalues():
             for set_ in group._children:
                 if not set_._enabled_checkbox.isChecked():
@@ -249,12 +255,22 @@ class Dialog(QtGui.QDialog):
                 if not os.path.exists(path):
                     os.makedirs(path)
                 export_cache(path, name, frame_from, frame_to, world)
+                
+                current_i += 1
+                progress.setValue(current_i)
+                if progress.wasCanceled():
+                    break
+            if progress.wasCanceled():
+                break
         
         # Restore selection.
         if original_selection:
             cmds.select(original_selection, replace=True)
         else:
             cmds.select(clear=True)
+        
+        if not progress.wasCanceled():
+            self.close()
         
     def _on_queue_button(self):
         cmds.error('Not Implemented')
