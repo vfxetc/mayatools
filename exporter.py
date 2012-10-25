@@ -120,9 +120,16 @@ class Dialog(QtGui.QDialog):
         if maya_version > 2011:
             export_path = os.path.splitext(path)[0] + ('.%d.ma' % maya_version)
         
-        original_selection = cmds.ls(sl=True)
+        # Reset camera settings.
+        camera = self._cameras.itemData(self._cameras.currentIndex()).toPyObject()[1]
+        original_zoom = tuple(cmds.getAttr(camera + '.' + attr) for attr in ('horizontalFilmOffset', 'verticalFilmOffset', 'overscan'))
+        cmds.setAttr(camera + '.horizontalFilmOffset', 0)
+        cmds.setAttr(camera + '.verticalFilmOffset', 0)
+        cmds.setAttr(camera + '.overscan', 1)
         
+        original_selection = cmds.ls(sl=True)
         cmds.select(list(self._nodes_to_export()), replace=True)
+        
         cmds.file(export_path, type='mayaAscii', exportSelected=True)
         
         # Rewrite the file to work with 2011.
@@ -156,7 +163,13 @@ class Dialog(QtGui.QDialog):
                         in_image_plane = False
                     
                     fh.write(line)
-            
+        
+        # Restore camera settings.
+        cmds.setAttr(camera + '.horizontalFilmOffset', original_zoom[0])
+        cmds.setAttr(camera + '.verticalFilmOffset', original_zoom[1])
+        cmds.setAttr(camera + '.overscan', original_zoom[2])
+        
+        # Restore selection.
         if original_selection:
             cmds.select(original_selection, replace=True)
         else:
