@@ -1,4 +1,4 @@
-
+import sys
 
 
 def downgrade_to_2011(src_path, dst_path):
@@ -10,18 +10,22 @@ def downgrade_to_2011(src_path, dst_path):
     command_block = ()
             
     fh = open(dst_path, 'w')
-    for line in open(src_path):
+    for raw_line in open(src_path):
         
         # Skip comments.
-        if line.startswith('//'):
-            fh.write(line)
+        if raw_line.startswith('//'):
+            fh.write(raw_line)
             continue
         
         # This will always have one item, but it may be an empty string.
-        line_parts = line.strip().rstrip(';').split()
+        raw_line = raw_line.rstrip()
+        line = raw_line.lstrip('\t')
+        indent = len(raw_line) - len(line)
+        is_end_of_command = line[-1] == ';'
+        line_parts = line.strip().rstrip(';').strip().split() or ['']
         
         # Track what command block we are in.
-        is_command_block = line.strip() and not line[0].isspace()
+        is_command_block = raw_line.strip() and not raw_line[0].isspace()
         if is_command_block:
             command_block = tuple(line_parts)
                 
@@ -50,9 +54,13 @@ def downgrade_to_2011(src_path, dst_path):
                     continue
         
         # Write the transformed line back out.
-        fh.write('%s%s;\n' % (
-            ('' if is_command_block else '\t'),
+        fh.write('%s%s%s\n' % (
+            '\t' * indent,
             ' '.join(line_parts),
+            ';' if is_end_of_command else ''
         ))
-    
+
+
+def main():
+    downgrade_to_2011(*sys.argv[1:])
     
