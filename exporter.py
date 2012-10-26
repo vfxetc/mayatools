@@ -162,13 +162,13 @@ class Dialog(QtGui.QDialog):
         self.layout().addWidget(box)
     
         self._scene_name = scene_name.SceneNameWidget({
-            'scenes_name': 'data/geo_cache',
+            'directory': 'data/geo_cache',
             'sub_directory': '',
             'extension': '',
             'workspace': cmds.workspace(q=True, fullName=True) or None,
             'filename': cmds.file(q=True, sceneName=True) or None,
             'warning': self._warning,
-            'error': self._error,
+            'error': self._warning,
         })
         box.layout().addWidget(self._scene_name)
     
