@@ -44,13 +44,13 @@ class Dialog(QtGui.QDialog):
         box.setLayout(QtGui.QVBoxLayout())
         self.layout().addWidget(box)
         self._scene_name = scene_name.SceneNameWidget({
-            'scenes_name': 'scenes/camera',
+            'directory': 'scenes/camera',
             'sub_directory': '',
             'extension': '.ma',
             'workspace': cmds.workspace(q=True, fullName=True) or None,
             'filename': cmds.file(q=True, sceneName=True) or None,
             'warning': self._warning,
-            'error': self._error,
+            'error': self._warning,
         })
         box.layout().addWidget(self._scene_name)
         
