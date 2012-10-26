@@ -1,3 +1,4 @@
+import os
 import re
 
 from maya import cmds, mel
@@ -196,3 +197,46 @@ def get_existing_cache_mappings():
         mapping[shape] = channel
     return mappings
 
+
+def export_cache_on_farm(selection, *args):
+    cmds.select(selection, replace=True)
+    export_cache(*args)
+
+
+def export_cache(path, name, frame_from, frame_to, world):
+
+    if not os.path.exists(path):
+        os.makedirs(path)
+    
+    # See maya_base/scripts/other/doCreateGeometryCache.mel
+    maya_version = int(cmds.about(version=True).split()[0])
+    version = 6 if maya_version >= 2013 else 4
+    
+    args = [
+        0, # 0 -> Use provided start/end frame.
+        frame_from,
+        frame_to,
+        "OneFilePerFrame", # File distribution mode.
+        0, # Refresh during caching?
+        path, # Directory for cache files.
+        0, # Create cache per geometry?
+        name, # Name of cache file.
+        0, # Is that name a prefix?
+        "export", # Action to perform.
+        1, # Force overwrites?
+        1, # Simulation rate.
+        1, # Sample multiplier.
+        0, # Inherit modifications from cache to be replaced?
+        1, # Save as floats.
+    ]
+    
+    if version >= 6:
+        args.extend((
+            "mcc", # Cache format.
+            int(world), # Save in world space?
+        ))
+    
+    mel.eval('doCreateGeometryCache %s { %s }' % (
+        version,
+        ', '.join('"%s"' % x for x in args),
+    ))

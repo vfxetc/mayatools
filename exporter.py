@@ -3,12 +3,17 @@ from __future__ import absolute_import
 import os
 import re
 
+
 from PyQt4 import QtCore, QtGui
 Qt = QtCore.Qt
 
 from maya import cmds, mel
 
+import qbfutures.maya
+
 import ks.core.scene_name.widget as scene_name
+
+from .utils import export_cache, export_cache_on_farm
 
 
 class GroupCheckBox(QtGui.QCheckBox):
@@ -47,8 +52,6 @@ class GroupItem(QtGui.QTreeWidgetItem):
         new_state = any(x._enabled_checkbox.isChecked() for x in self._children)
         self._enabled_checkbox.setChecked(new_state)
     
-        
-        
     
 class SetItem(QtGui.QTreeWidgetItem):
     
@@ -171,23 +174,16 @@ class Dialog(QtGui.QDialog):
     
         button_layout = QtGui.QHBoxLayout()
         self.layout().addLayout(button_layout)
-    
-        # button = self._save_button = QtGui.QPushButton("Save Settings")
-        # button.clicked.connect(self._on_save_button)
-        # button.setFixedSize(QtCore.QSize(100, button.sizeHint().height()))
-        # button_layout.addWidget(button)
-
+        
         button_layout.addStretch()
         
         button = self._local_button = QtGui.QPushButton("Process Locally")
         button.clicked.connect(self._on_process_button)
-        button.setFixedSize(QtCore.QSize(100, button.sizeHint().height()))
         button_layout.addWidget(button)
         
-        # button = self._qube_button = QtGui.QPushButton("Queue on Farm")
-        # button.clicked.connect(self._on_queue_button)
-        # button.setFixedSize(QtCore.QSize(100, button.sizeHint().height()))
-        # button_layout.addWidget(button)
+        button = self._qube_button = QtGui.QPushButton("Process on Farm")
+        button.clicked.connect(self._on_queue_button)
+        button_layout.addWidget(button)
     
     def _reload(self):
         
@@ -226,42 +222,33 @@ class Dialog(QtGui.QDialog):
     
     def _on_save_button(self):
         cmds.error('Not Implemented')
-        
-    def _on_process_button(self):
-        
-        total = sum(len(group._children) for group in self._groups.itervalues())
-        progress = QtGui.QProgressDialog("Exporting Geocaches...", "Cancel Export", 0, total, self)
-        progress.setWindowModality(Qt.WindowModal)
-        
-        original_selection = cmds.ls(selection=True)
+    
+    def _iter_to_cache(self):
         
         frame_from = cmds.playbackOptions(q=True, minTime=True)
         frame_to = cmds.playbackOptions(q=True, maxTime=True)
         world = self._world_radio.isChecked()
         
         root = self._scene_name._namer.get_path()
-        
-        current_i = 0
         for group in self._groups.itervalues():
             for set_ in group._children:
+                
                 if not set_._enabled_checkbox.isChecked():
                     continue
-                
+        
                 members = cmds.sets(set_._path, q=True)
-                cmds.select(members, replace=True)
-                
                 name = set_._cache_name or '__cache__'
                 path = os.path.join(root, name)
-                if not os.path.exists(path):
-                    os.makedirs(path)
-                export_cache(path, name, frame_from, frame_to, world)
                 
-                current_i += 1
-                progress.setValue(current_i)
-                if progress.wasCanceled():
-                    break
-            if progress.wasCanceled():
-                break
+                yield members, path, name, frame_from, frame_to, world
+        
+    def _on_process_button(self):
+        
+        original_selection = cmds.ls(selection=True)
+        
+        for members, path, name, frame_from, frame_to, world in self._iter_to_cache():
+            cmds.select(members, replace=True)
+            export_cache(path, name, frame_from, frame_to, world)
         
         # Restore selection.
         if original_selection:
@@ -269,47 +256,26 @@ class Dialog(QtGui.QDialog):
         else:
             cmds.select(clear=True)
         
-        if not progress.wasCanceled():
-            self.close()
+        self.close()
         
     def _on_queue_button(self):
-        cmds.error('Not Implemented')
+        
+        executor = qbfutures.maya.Executor(
+            cpus=4,
+            clone_environ=True,
+            create_tempfile=True,
+        )
+        
+        with executor.batch('Geocache Export - %s' % self._scene_name._namer.get_basename()) as batch:
+            for args in self._iter_to_cache():
+                members, path, name, frame_from, frame_to, world = args
+                print 'name', repr(name)
+                batch.submit_ext(export_cache_on_farm, args=args, name=str(name))
+        
+        QtGui.QMessageBox.information(self, "Submitted to Qube", "The geocache export was submitted as job %d" % batch.futures[0].job_id)
+        self.close()
 
 
-def export_cache(path, name, frame_from, frame_to, world):
-    
-    # See maya_base/scripts/other/doCreateGeometryCache.mel
-    maya_version = int(cmds.about(version=True).split()[0])
-    version = 6 if maya_version >= 2013 else 4
-    
-    args = [
-        0, # 0 -> Use provided start/end frame.
-        frame_from,
-        frame_to,
-        "OneFilePerFrame", # File distribution mode.
-        0, # Refresh during caching?
-        path, # Directory for cache files.
-        0, # Create cache per geometry?
-        name, # Name of cache file.
-        0, # Is that name a prefix?
-        "export", # Action to perform.
-        1, # Force overwrites?
-        1, # Simulation rate.
-        1, # Sample multiplier.
-        0, # Inherit modifications from cache to be replaced?
-        1, # Save as floats.
-    ]
-    
-    if version >= 6:
-        args.extend((
-            "mcc", # Cache format.
-            int(world), # Save in world space?
-        ))
-    
-    mel.eval('doCreateGeometryCache %s { %s }' % (
-        version,
-        ', '.join('"%s"' % x for x in args),
-    ))
 
 
 __also_reload__ = ['ks.core.scene_name.widget', 'ks.core.scene_name.core']
