@@ -13,7 +13,7 @@ import qbfutures.maya
 
 import ks.core.scene_name.widget as scene_name
 
-from .utils import export_cache, export_cache_on_farm
+from .utils import export_cache
 
 
 class GroupCheckBox(QtGui.QCheckBox):
@@ -243,19 +243,8 @@ class Dialog(QtGui.QDialog):
                 yield members, path, name, frame_from, frame_to, world
         
     def _on_process_button(self):
-        
-        original_selection = cmds.ls(selection=True)
-        
-        for members, path, name, frame_from, frame_to, world in self._iter_to_cache():
-            cmds.select(members, replace=True)
-            export_cache(path, name, frame_from, frame_to, world)
-        
-        # Restore selection.
-        if original_selection:
-            cmds.select(original_selection, replace=True)
-        else:
-            cmds.select(clear=True)
-        
+        for args in self._iter_to_cache():
+            export_cache(*args)
         self.close()
         
     def _on_queue_button(self):
@@ -270,7 +259,7 @@ class Dialog(QtGui.QDialog):
             for args in self._iter_to_cache():
                 members, path, name, frame_from, frame_to, world = args
                 print 'name', repr(name)
-                batch.submit_ext(export_cache_on_farm, args=args, name=str(name))
+                batch.submit_ext(export_cache, args=args, name=str(name))
         
         QtGui.QMessageBox.information(self, "Submitted to Qube", "The geocache export was submitted as job %d" % batch.futures[0].job_id)
         self.close()

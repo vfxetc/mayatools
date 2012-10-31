@@ -198,12 +198,7 @@ def get_existing_cache_mappings():
     return mappings
 
 
-def export_cache_on_farm(selection, *args):
-    cmds.select(selection, replace=True)
-    export_cache(*args)
-
-
-def export_cache(path, name, frame_from, frame_to, world):
+def export_cache(members, path, name, frame_from, frame_to, world):
 
     if not os.path.exists(path):
         os.makedirs(path)
@@ -236,7 +231,32 @@ def export_cache(path, name, frame_from, frame_to, world):
             int(world), # Save in world space?
         ))
     
-    mel.eval('doCreateGeometryCache %s { %s }' % (
-        version,
-        ', '.join('"%s"' % x for x in args),
-    ))
+        
+    cmds.refresh(suspend=True)
+    original_selection = cmds.ls(selection=True)
+    hidden_layers = [layer for layer in cmds.ls(type="displayLayer") or () if not cmds.getAttr(layer + '.visibility')]
+    
+    try:
+        
+        cmds.select(members, replace=True)
+        
+        mel.eval('doCreateGeometryCache %s { %s }' % (
+            version,
+            ', '.join('"%s"' % x for x in args),
+        ))
+    
+    finally:
+            
+        # Restore selection.
+        if original_selection:
+            cmds.select(original_selection, replace=True)
+        else:
+            cmds.select(clear=True)
+            
+        # Restore visiblity
+        for layer in hidden_layers:
+            cmds.setAttr(layer + '.visibility', False)
+            
+        # Restore refresh
+        cmds.refresh(suspend=False)
+    
