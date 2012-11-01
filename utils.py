@@ -238,6 +238,9 @@ def export_cache(members, path, name, frame_from, frame_to, world):
     
     try:
         
+        for layer in hidden_layers:
+            cmds.setAttr(layer + '.visibility', True)
+        
         cmds.select(members, replace=True)
         
         mel.eval('doCreateGeometryCache %s { %s }' % (
