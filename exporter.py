@@ -267,7 +267,7 @@ class Dialog(QtGui.QDialog):
 
 
 
-__also_reload__ = ['ks.core.scene_name.widget', 'ks.core.scene_name.core']
+__also_reload__ = ['ks.core.scene_name.widget', 'ks.core.scene_name.core', '.utils']
 def __before_reload__():
     if dialog:
         dialog.close()
