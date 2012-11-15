@@ -28,7 +28,15 @@ def downgrade_to_2011(src_path, dst_path):
         is_command_block = raw_line.strip() and not raw_line[0].isspace()
         if is_command_block:
             command_block = tuple(line_parts)
-                
+        
+        # Strip out some flags.
+        if line_parts[0] == 'setAttr':
+            try:
+                index = line_parts.index('-ch')
+                line_parts = line_parts[:index] + line_parts[index + 2:]
+            except ValueError:
+                pass
+        
         # Strip all requires, but add a 2011 requires.
         if is_command_block and line_parts[0] == 'requires':
             if line_parts[1] == 'maya':
@@ -41,8 +49,8 @@ def downgrade_to_2011(src_path, dst_path):
             if is_command_block:
                 # Can't have '-p' flag.
                 try:
-                    p_index = line_parts.index('-p')
-                    line_parts = line_parts[:p_index] + line_parts[p_index + 2:]
+                    index = line_parts.index('-p')
+                    line_parts = line_parts[:index] + line_parts[index + 2:]
                 except ValueError:
                     pass
             else:
@@ -52,6 +60,11 @@ def downgrade_to_2011(src_path, dst_path):
                     line_parts[-1] == '".v"'
                 )):
                     continue
+        
+        # Not entirely sure what this attribute does...
+        if command_block[:2] == ('createNode', 'mesh'):
+            if line_parts[:2] == ['setAttr', '".vnm"']:
+                continue
         
         # Write the transformed line back out.
         fh.write('%s%s%s\n' % (
@@ -63,4 +76,7 @@ def downgrade_to_2011(src_path, dst_path):
 
 def main():
     downgrade_to_2011(*sys.argv[1:])
-    
+
+if __name__ == '__main__':
+    main()
+
