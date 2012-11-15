@@ -41,9 +41,13 @@ class Dialog(QtGui.QDialog):
         self._summary = QtGui.QLabel("Select a camera.")
         box.layout().addWidget(self._summary)
         
-        box = QtGui.QGroupBox("Export Name")
+        self._tabs = tabs = QtGui.QTabWidget()
+        self._tabs.currentChanged.connect(self._on_tab_change)
+        self.layout().addWidget(tabs)
+        
+        box = QtGui.QWidget()
         box.setLayout(QtGui.QVBoxLayout())
-        self.layout().addWidget(box)
+        tabs.addTab(box, "Export")
         self._scene_name = scene_name.SceneNameWidget({
             'directory': 'scenes/camera',
             'sub_directory': '',
@@ -55,15 +59,26 @@ class Dialog(QtGui.QDialog):
         })
         box.layout().addWidget(self._scene_name)
         
+        
+        box = QtGui.QWidget()
+        tabs.addTab(box, "Publish")
+        box.setLayout(QtGui.QVBoxLayout())
+        label = QtGui.QLabel("NOT YET IMPLEMENTED")
+        label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+        box.layout().addWidget(label)
+        
         button_row = QtGui.QHBoxLayout()
         button_row.addStretch()
         self.layout().addLayout(button_row)
         
-        button = QtGui.QPushButton("Export")
+        self._button = button = QtGui.QPushButton("Export")
         button.clicked.connect(self._on_export)
         button_row.addWidget(button)
         
         self._populate_cameras()
+    
+    def _on_tab_change(self, *args):
+        self._button.setText(self._tabs.tabText(self._tabs.currentIndex()))
     
     def _on_reload(self, *args):
         self._populate_cameras()
