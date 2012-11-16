@@ -8,8 +8,74 @@ Qt = QtCore.Qt
 
 from maya import cmds, mel
 
-import ks.core.scene_name.widget as scene_name
+import sgfs.ui.scene_name.widget as scene_name
+import sgpublish.ui.exporter
+import sgpublish.io.maya
+
 import ks.maya.downgrade as downgrade
+
+__also_reload__ = [
+    'ks.maya.downgrade',
+    'sgfs.ui.scene_name.widget',
+    'sgpublish.ui.exporter',
+    'sgpublish.io',
+    'sgpublish.io.maya',
+]
+
+
+class CameraExporter(sgpublish.io.maya.Exporter):
+
+    def __init__(self, dialog):
+        super(CameraExporter, self).__init__(
+            workspace=cmds.workspace(q=True, fullName=True) or None,
+            filename_hint=cmds.file(q=True, sceneName=True) or 'camera.ma',
+            publish_type='maya_camera',
+        )
+        self.dialog = dialog
+    
+    def export(self, directory, path=None):
+        
+        if path is None:
+            path = os.path.join(directory, os.path.basename(self.filename_hint))
+        
+        export_path = path
+        print 'exporting to', path
+        
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+            
+        # If this is 2013 then export to somewhere temporary.
+        maya_version = int(mel.eval('about -version').split()[0])
+        if maya_version > 2011:
+            export_path = os.path.splitext(path)[0] + ('.%d.ma' % maya_version)
+        
+        # Reset camera settings.
+        camera = self.dialog._cameras.itemData(self.dialog._cameras.currentIndex()).toPyObject()[1]
+        original_zoom = tuple(cmds.getAttr(camera + '.' + attr) for attr in ('horizontalFilmOffset', 'verticalFilmOffset', 'overscan'))
+        cmds.setAttr(camera + '.horizontalFilmOffset', 0)
+        cmds.setAttr(camera + '.verticalFilmOffset', 0)
+        cmds.setAttr(camera + '.overscan', 1)
+        
+        original_selection = cmds.ls(sl=True)
+        cmds.select(list(self.dialog._nodes_to_export()), replace=True)
+        
+        cmds.file(export_path, type='mayaAscii', exportSelected=True)
+        
+        # Rewrite the file to work with 2011.
+        if maya_version > 2011:
+            downgrade.downgrade_to_2011(export_path, path)
+        
+        # Restore camera settings.
+        cmds.setAttr(camera + '.horizontalFilmOffset', original_zoom[0])
+        cmds.setAttr(camera + '.verticalFilmOffset', original_zoom[1])
+        cmds.setAttr(camera + '.overscan', original_zoom[2])
+        
+        # Restore selection.
+        if original_selection:
+            cmds.select(original_selection, replace=True)
+        else:
+            cmds.select(clear=True)
+            
 
 
 class Dialog(QtGui.QDialog):
@@ -25,6 +91,7 @@ class Dialog(QtGui.QDialog):
         self.setSizePolicy(QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Fixed)
         
         camera_row = QtGui.QHBoxLayout()
+        camera_row.setSpacing(2)
         self.layout().addLayout(camera_row)
         
         self._cameras = QtGui.QComboBox()
@@ -33,7 +100,8 @@ class Dialog(QtGui.QDialog):
         
         button = QtGui.QPushButton("Reload")
         button.clicked.connect(self._on_reload)
-        button.setFixedSize(button.sizeHint().boundedTo(QtCore.QSize(1000, 22)))
+        button.setFixedHeight(self._cameras.sizeHint().height())
+        button.setFixedWidth(button.sizeHint().width())
         camera_row.addWidget(button)
         
         box = QtGui.QGroupBox("Summary")
@@ -43,36 +111,22 @@ class Dialog(QtGui.QDialog):
         box.layout().addWidget(self._summary)
         box.setSizePolicy(QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Fixed)
         
-        self._tabs = tabs = QtGui.QTabWidget()
-        self.layout().addWidget(tabs)
-        self._tabs.sizeHint = self._tab_sizeHint
-        self._tabs.minimumSizeHint = self._tab_sizeHint
-        self._tabs.currentChanged.connect(self._on_tab_change)
-        policy = self._tabs.sizePolicy()
-        policy.setVerticalPolicy(QtGui.QSizePolicy.Fixed)
-        self._tabs.setSizePolicy(policy)
-        
-        box = QtGui.QWidget()
-        box.setLayout(QtGui.QVBoxLayout())
-        tabs.addTab(box, "Export")
-        self._scene_name = scene_name.SceneNameWidget({
-            'directory': 'scenes/camera',
-            'sub_directory': '',
-            'extension': '.ma',
-            'workspace': cmds.workspace(q=True, fullName=True) or None,
-            'filename': cmds.file(q=True, sceneName=True) or None,
-            'warning': self._warning,
-            'error': self._warning,
-        })
-        box.layout().addWidget(self._scene_name)
-        
-        
-        box = QtGui.QWidget()
-        tabs.addTab(box, "Publish")
-        box.setLayout(QtGui.QVBoxLayout())
-        label = QtGui.QLabel("NOT YET IMPLEMENTED")
-        label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
-        box.layout().addWidget(label)
+        self._exporter_widget = sgpublish.ui.exporter.Widget.factory(
+            exporter=CameraExporter(self),
+            work_area=True,
+            publish=True,
+            work_area_kwargs={
+                'directory': 'scenes/camera',
+                'sub_directory': '',
+                'extension': '.ma',
+                'warning': self._warning,
+                'error': self._warning,
+            },
+        )
+        self._exporter_widget.currentChanged.connect(lambda *args: self.adjustSize())
+        self._exporter_widget.beforeScreenshot.connect(lambda *args: self.hide())
+        self._exporter_widget.afterScreenshot.connect(lambda *args: self.show())
+        self.layout().addWidget(self._exporter_widget)
         
         button_row = QtGui.QHBoxLayout()
         button_row.addStretch()
@@ -83,20 +137,6 @@ class Dialog(QtGui.QDialog):
         button_row.addWidget(button)
         
         self._populate_cameras()
-    
-    def _tab_sizeHint(self):
-        bar = self._tabs.tabBar()
-        widget = self._tabs.currentWidget()
-        hint = widget.sizeHint()
-        hint.setHeight(hint.height() + bar.sizeHint().height())
-        return hint
-        
-    def _on_tab_change(self, *args):
-        self._button.setText(self._tabs.tabText(self._tabs.currentIndex()))
-        self._tabs.updateGeometry()
-        #self.resize(self.sizeHint())
-        self.adjustSize()
-        # self._tabs.setFixedHeight(self._tab_sizeHint().height())
     
     def _on_reload(self, *args):
         self._populate_cameras()
@@ -140,47 +180,7 @@ class Dialog(QtGui.QDialog):
         self._summary.setText('\n'.join('%dx %s' % (c, n) for n, c in sorted(counts.iteritems())))
         
     def _on_export(self, *args):
-        
-        path = self._scene_name._namer.get_path()
-        export_path = path
-        print path
-        
-        dir_name = os.path.dirname(path)
-        if not os.path.exists(dir_name):
-            os.makedirs(dir_name)
-            
-        # If this is 2013 then export to somewhere temporary.
-        maya_version = int(mel.eval('about -version').split()[0])
-        if maya_version > 2011:
-            export_path = os.path.splitext(path)[0] + ('.%d.ma' % maya_version)
-        
-        # Reset camera settings.
-        camera = self._cameras.itemData(self._cameras.currentIndex()).toPyObject()[1]
-        original_zoom = tuple(cmds.getAttr(camera + '.' + attr) for attr in ('horizontalFilmOffset', 'verticalFilmOffset', 'overscan'))
-        cmds.setAttr(camera + '.horizontalFilmOffset', 0)
-        cmds.setAttr(camera + '.verticalFilmOffset', 0)
-        cmds.setAttr(camera + '.overscan', 1)
-        
-        original_selection = cmds.ls(sl=True)
-        cmds.select(list(self._nodes_to_export()), replace=True)
-        
-        cmds.file(export_path, type='mayaAscii', exportSelected=True)
-        
-        # Rewrite the file to work with 2011.
-        if maya_version > 2011:
-            downgrade.downgrade_to_2011(export_path, path)
-        
-        # Restore camera settings.
-        cmds.setAttr(camera + '.horizontalFilmOffset', original_zoom[0])
-        cmds.setAttr(camera + '.verticalFilmOffset', original_zoom[1])
-        cmds.setAttr(camera + '.overscan', original_zoom[2])
-        
-        # Restore selection.
-        if original_selection:
-            cmds.select(original_selection, replace=True)
-        else:
-            cmds.select(clear=True)
-        
+        self._exporter_widget.export()
         self.close()
         
     def _warning(self, message):
@@ -191,7 +191,6 @@ class Dialog(QtGui.QDialog):
         cmds.error(message)
 
 
-__also_reload__ = ['ks.core.scene_name.widget']
 def __before_reload__():
     if dialog:
         dialog.close()
