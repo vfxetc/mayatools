@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 import os
 import re
 
@@ -8,8 +6,14 @@ Qt = QtCore.Qt
 
 from maya import cmds, mel
 
-import ks.core.scene_name.widget as scene_name
 from ks.core import product_select
+
+import ks.core.scene_name.widget as scene_name
+
+__also_reload__ = [
+    'ks.core.scene_name.widget',
+    'sgfs.ui.keybase',
+]
 
 
 class CameraSelector(product_select.Layout):
@@ -81,9 +85,6 @@ class Dialog(QtGui.QDialog):
         self.close()
 
 
-__also_reload__ = [
-    'ks.core.product_select',
-]
 
 def __before_reload__():
     if dialog:
