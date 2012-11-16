@@ -22,6 +22,7 @@ class Dialog(QtGui.QDialog):
         
         self.setWindowTitle("Camera Export")
         self.setLayout(QtGui.QVBoxLayout())
+        self.setSizePolicy(QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Fixed)
         
         camera_row = QtGui.QHBoxLayout()
         self.layout().addLayout(camera_row)
@@ -40,10 +41,16 @@ class Dialog(QtGui.QDialog):
         box.setLayout(QtGui.QVBoxLayout())
         self._summary = QtGui.QLabel("Select a camera.")
         box.layout().addWidget(self._summary)
+        box.setSizePolicy(QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Fixed)
         
         self._tabs = tabs = QtGui.QTabWidget()
-        self._tabs.currentChanged.connect(self._on_tab_change)
         self.layout().addWidget(tabs)
+        self._tabs.sizeHint = self._tab_sizeHint
+        self._tabs.minimumSizeHint = self._tab_sizeHint
+        self._tabs.currentChanged.connect(self._on_tab_change)
+        policy = self._tabs.sizePolicy()
+        policy.setVerticalPolicy(QtGui.QSizePolicy.Fixed)
+        self._tabs.setSizePolicy(policy)
         
         box = QtGui.QWidget()
         box.setLayout(QtGui.QVBoxLayout())
@@ -77,8 +84,19 @@ class Dialog(QtGui.QDialog):
         
         self._populate_cameras()
     
+    def _tab_sizeHint(self):
+        bar = self._tabs.tabBar()
+        widget = self._tabs.currentWidget()
+        hint = widget.sizeHint()
+        hint.setHeight(hint.height() + bar.sizeHint().height())
+        return hint
+        
     def _on_tab_change(self, *args):
         self._button.setText(self._tabs.tabText(self._tabs.currentIndex()))
+        self._tabs.updateGeometry()
+        #self.resize(self.sizeHint())
+        self.adjustSize()
+        # self._tabs.setFixedHeight(self._tab_sizeHint().height())
     
     def _on_reload(self, *args):
         self._populate_cameras()
