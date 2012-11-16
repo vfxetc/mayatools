@@ -12,8 +12,8 @@ from maya import cmds, mel
 
 from sgfs import SGFS
 
-import ks.core.scene_name.core as scene_name
-from ks.core import product_select
+from sgfs.ui import product_select
+import sgfs.ui.scene_name.widget as scene_name
 
 from . import utils
 

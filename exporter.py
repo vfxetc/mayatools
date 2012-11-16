@@ -11,7 +11,8 @@ from maya import cmds, mel
 
 import qbfutures.maya
 
-import ks.core.scene_name.widget as scene_name
+from sgfs.ui import product_select
+import sgfs.ui.scene_name.widget as scene_name
 
 from .utils import export_cache
 
