@@ -38,6 +38,9 @@ class CameraExporter(sgpublish.io.maya.Exporter):
         if path is None:
             path = os.path.join(directory, os.path.basename(self.filename_hint))
         
+        # Make sure it is MayaAscii.
+        path = os.path.splitext(path)[0] + '.ma'
+        
         export_path = path
         print 'exporting to', path
         
