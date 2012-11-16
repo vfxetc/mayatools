@@ -6,13 +6,12 @@ Qt = QtCore.Qt
 
 from maya import cmds, mel
 
-from ks.core import product_select
-
-import ks.core.scene_name.widget as scene_name
+from sgfs.ui import product_select
+import sgfs.ui.scene_name.widget as scene_name
 
 __also_reload__ = [
-    'ks.core.scene_name.widget',
-    'sgfs.ui.keybase',
+    'sgfs.ui.scene_name.widget',
+    'sgfs.ui.product_select',
 ]
 
 
