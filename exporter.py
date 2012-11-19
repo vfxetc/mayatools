@@ -9,15 +9,20 @@ Qt = QtCore.Qt
 from maya import cmds, mel
 
 import sgfs.ui.scene_name.widget as scene_name
-import sgpublish.ui.exporter
+
 import sgpublish.io.maya
+import sgpublish.ui.exporter.publish
+import sgpublish.ui.exporter.tabwidget
+import sgpublish.ui.exporter.workarea
 
 import ks.maya.downgrade as downgrade
 
 __also_reload__ = [
     'ks.maya.downgrade',
     'sgfs.ui.scene_name.widget',
-    'sgpublish.ui.exporter',
+    'sgpublish.ui.exporter.publish',
+    'sgpublish.ui.exporter.tabwidget',
+    'sgpublish.ui.exporter.workarea',
     'sgpublish.io',
     'sgpublish.io.maya',
 ]
@@ -33,8 +38,9 @@ class CameraExporter(sgpublish.io.maya.Exporter):
         )
         self.dialog = dialog
     
-    def export(self, directory, path=None):
+    def export(self, directory, path):
         
+        # Publishing results in a None path.
         if path is None:
             path = os.path.join(directory, os.path.basename(self.filename_hint))
         
@@ -46,7 +52,7 @@ class CameraExporter(sgpublish.io.maya.Exporter):
         
         if not os.path.exists(directory):
             os.makedirs(directory)
-            
+        
         # If this is 2013 then export to somewhere temporary.
         maya_version = int(mel.eval('about -version').split()[0])
         if maya_version > 2011:
@@ -106,30 +112,33 @@ class Dialog(QtGui.QDialog):
         button.setFixedHeight(self._cameras.sizeHint().height())
         button.setFixedWidth(button.sizeHint().width())
         camera_row.addWidget(button)
-        
-        box = QtGui.QGroupBox("Summary")
+
+        box = QtGui.QGroupBox("Manifest Summary")
         self.layout().addWidget(box)
         box.setLayout(QtGui.QVBoxLayout())
         self._summary = QtGui.QLabel("Select a camera.")
         box.layout().addWidget(self._summary)
         box.setSizePolicy(QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Fixed)
         
-        self._exporter_widget = sgpublish.ui.exporter.Widget.factory(
-            exporter=CameraExporter(self),
-            work_area=True,
-            publish=True,
-            work_area_kwargs={
-                'directory': 'scenes/camera',
-                'sub_directory': '',
-                'extension': '.ma',
-                'warning': self._warning,
-                'error': self._warning,
-            },
-        )
-        self._exporter_widget.currentChanged.connect(lambda *args: self.adjustSize())
-        self._exporter_widget.beforeScreenshot.connect(lambda *args: self.hide())
-        self._exporter_widget.afterScreenshot.connect(lambda *args: self.show())
+        self._exporter = CameraExporter(self)
+        self._exporter_widget = sgpublish.ui.exporter.tabwidget.Widget()
         self.layout().addWidget(self._exporter_widget)
+        
+        # Work area.
+        tab = sgpublish.ui.exporter.workarea.Widget(self._exporter, {
+            'directory': 'scenes/camera',
+            'sub_directory': '',
+            'extension': '.ma',
+            'warning': self._warning,
+            'error': self._warning,
+        })
+        self._exporter_widget.addTab(tab, "Export to Work Area")
+        
+        # SGPublishes.
+        tab = sgpublish.ui.exporter.publish.Widget(self._exporter)
+        tab.beforeScreenshot.connect(lambda *args: self.hide())
+        tab.afterScreenshot.connect(lambda *args: self.show())
+        self._exporter_widget.addTab(tab, "Publish to Shotgun")
         
         button_row = QtGui.QHBoxLayout()
         button_row.addStretch()
