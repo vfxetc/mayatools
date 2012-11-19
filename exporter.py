@@ -14,31 +14,32 @@ import sgpublish.io.maya
 import sgpublish.ui.exporter.publish
 import sgpublish.ui.exporter.tabwidget
 import sgpublish.ui.exporter.workarea
+import sgpublish.ui.utils
 
 import ks.maya.downgrade as downgrade
 
 __also_reload__ = [
     'ks.maya.downgrade',
     'sgfs.ui.scene_name.widget',
+    'sgpublish.io.base',
+    'sgpublish.io.maya',
     'sgpublish.ui.exporter.publish',
     'sgpublish.ui.exporter.tabwidget',
     'sgpublish.ui.exporter.workarea',
-    'sgpublish.io',
-    'sgpublish.io.maya',
+    'sgpublish.ui.utils',
 ]
 
 
 class CameraExporter(sgpublish.io.maya.Exporter):
 
-    def __init__(self, dialog):
+    def __init__(self):
         super(CameraExporter, self).__init__(
             workspace=cmds.workspace(q=True, fullName=True) or None,
             filename_hint=cmds.file(q=True, sceneName=True) or 'camera.ma',
             publish_type='maya_camera',
         )
-        self.dialog = dialog
     
-    def export(self, directory, path):
+    def export(self, directory, path, camera, selection=None):
         
         # Publishing results in a None path.
         if path is None:
@@ -48,7 +49,7 @@ class CameraExporter(sgpublish.io.maya.Exporter):
         path = os.path.splitext(path)[0] + '.ma'
         
         export_path = path
-        print 'exporting to', path
+        print '# Exporting camera to %s' % path
         
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -59,14 +60,16 @@ class CameraExporter(sgpublish.io.maya.Exporter):
             export_path = os.path.splitext(path)[0] + ('.%d.ma' % maya_version)
         
         # Reset camera settings.
-        camera = self.dialog._cameras.itemData(self.dialog._cameras.currentIndex()).toPyObject()[1]
         original_zoom = tuple(cmds.getAttr(camera + '.' + attr) for attr in ('horizontalFilmOffset', 'verticalFilmOffset', 'overscan'))
         cmds.setAttr(camera + '.horizontalFilmOffset', 0)
         cmds.setAttr(camera + '.verticalFilmOffset', 0)
         cmds.setAttr(camera + '.overscan', 1)
         
-        original_selection = cmds.ls(sl=True)
-        cmds.select(list(self.dialog._nodes_to_export()), replace=True)
+        if selection is not None:
+            original_selection = cmds.ls(sl=True)
+            cmds.select(selection, replace=True)
+        else:
+            original_selection = None
         
         cmds.file(export_path, type='mayaAscii', exportSelected=True)
         
@@ -82,7 +85,7 @@ class CameraExporter(sgpublish.io.maya.Exporter):
         # Restore selection.
         if original_selection:
             cmds.select(original_selection, replace=True)
-        else:
+        elif original_selection is not None:
             cmds.select(clear=True)
             
 
@@ -120,7 +123,7 @@ class Dialog(QtGui.QDialog):
         box.layout().addWidget(self._summary)
         box.setSizePolicy(QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Fixed)
         
-        self._exporter = CameraExporter(self)
+        self._exporter = CameraExporter()
         self._exporter_widget = sgpublish.ui.exporter.tabwidget.Widget()
         self.layout().addWidget(self._exporter_widget)
         
@@ -192,7 +195,12 @@ class Dialog(QtGui.QDialog):
         self._summary.setText('\n'.join('%dx %s' % (c, n) for n, c in sorted(counts.iteritems())))
         
     def _on_export(self, *args):
-        self._exporter_widget.export()
+        publisher = self._exporter_widget.export(
+            camera=self._cameras.itemData(self._cameras.currentIndex()).toPyObject()[1],
+            selection=list(self._nodes_to_export()),
+        )
+        if publisher:
+            sgpublish.ui.utils.announce_publish_success(publisher)
         self.close()
         
     def _warning(self, message):
