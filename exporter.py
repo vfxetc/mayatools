@@ -39,14 +39,28 @@ class CameraExporter(sgpublish.io.maya.Exporter):
             publish_type='maya_camera',
         )
     
-    def export(self, directory, path, camera, selection=None):
+    def export_publish(self, publisher, **kwargs):
         
-        # Publishing results in a None path.
-        if path is None:
-            path = os.path.join(directory, os.path.basename(self.filename_hint))
+        # Construct a path.
+        path = os.path.join(publisher.directory, os.path.basename(self.filename_hint))
         
         # Make sure it is MayaAscii.
         path = os.path.splitext(path)[0] + '.ma'
+        
+        # Set the primary path (on Shotgun)
+        publisher.path = path
+        
+        return self._export(publisher.directory, path, **kwargs)
+        
+        
+    def export(self, directory, path, **kwargs):
+        
+        # Make sure it is MayaAscii.
+        path = os.path.splitext(path)[0] + '.ma'
+        
+        return self._export(directory, path, **kwargs)
+        
+    def _export(self, directory, path, camera, selection=None):
         
         export_path = path
         print '# Exporting camera to %s' % path
