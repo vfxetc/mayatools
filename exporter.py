@@ -11,7 +11,7 @@ from maya import cmds, mel
 import sgfs.ui.scene_name.widget as scene_name
 
 import sgpublish.io.maya
-import sgpublish.ui.exporter.publish
+import sgpublish.ui.exporter.maya.publish
 import sgpublish.ui.exporter.tabwidget
 import sgpublish.ui.exporter.workarea
 import sgpublish.ui.utils
@@ -23,7 +23,7 @@ __also_reload__ = [
     'sgfs.ui.scene_name.widget',
     'sgpublish.io.base',
     'sgpublish.io.maya',
-    'sgpublish.ui.exporter.publish',
+    'sgpublish.ui.exporter.maya.publish',
     'sgpublish.ui.exporter.tabwidget',
     'sgpublish.ui.exporter.workarea',
     'sgpublish.ui.utils',
@@ -101,7 +101,6 @@ class CameraExporter(sgpublish.io.maya.Exporter):
             cmds.select(original_selection, replace=True)
         elif original_selection is not None:
             cmds.select(clear=True)
-            
 
 
 class Dialog(QtGui.QDialog):
@@ -152,7 +151,7 @@ class Dialog(QtGui.QDialog):
         self._exporter_widget.addTab(tab, "Export to Work Area")
         
         # SGPublishes.
-        tab = sgpublish.ui.exporter.publish.Widget(self._exporter)
+        tab = sgpublish.ui.exporter.maya.publish.Widget(self._exporter)
         tab.beforeScreenshot.connect(lambda *args: self.hide())
         tab.afterScreenshot.connect(lambda *args: self.show())
         self._exporter_widget.addTab(tab, "Publish to Shotgun")
