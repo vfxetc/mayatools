@@ -85,16 +85,57 @@ def edit(func, *args, **kwargs):
     """
     
     if kwargs:
-        return _edit(func, *args, **kwargs)
+        return _edit(func, {'edit': True}, *args, **kwargs)
     else:
-        return functools.partial(_edit, func, *args)
+        return functools.partial(_edit, func, {'edit': True}, *args)
+
+
+def command(func, *args, **kwargs):
+    """A context manager that uses the standard query interface.
+    
+    Pass any values via keyword arguments and their original values will be
+    saved via ``func(*args, query=True, yourAttribute=True)``, and finally
+    restored via ``func(*args, yourAttribute=original)``.
+    
+    :param func: A callable, or name of a Maya command.
+    :param args: Positional arguments for the given ``func``.
+    :param kwargs: Values to set within the context.
+    :returns: A dictionary of the original values will be bound to the target of
+        the with statement. Changed to that dictionary will be applied.
+    
+    If you are already using a query pattern like::
+    
+        >>> current_time_unit = cmds.currentUnit(time)
+        >>> cmds.currentUnit(time='film')
+        >>> 
+        >>> try:
+        ...     # Do something.
+        ... finally:
+        ...     cmds.currentUnit(time=current_time_unit)
+    
+    then you can use this manager directly::
+    
+        >>> with command(cmds.currentUnit, time='film') as originals:
+        ...     # Do something.
+    
+    or as a context manager factory::
+    
+        >>> currentUnit = command(cmds.currentUnit)
+        >>> with currentUnit(time='film') as originals:
+        ...     # Do something.
+    
+    """
+    if kwargs:
+        return _edit(func, {}, *args, **kwargs)
+    else:
+        return functools.partial(_edit, func, {}, *args)
 
 
 @contextlib.contextmanager
-def _edit(func, *args, **kwargs):
+def _edit(func, edit_kwargs, *args, **kwargs):
         
     if isinstance(func, basestring):
-        func = getattr(cmds, name)
+        func = getattr(cmds, func)
         
     existing = {}
     try:
@@ -102,7 +143,9 @@ def _edit(func, *args, **kwargs):
         # Set the requested parameters.
         for name, value in kwargs.iteritems():
             existing[name] = func(*args, query=True, **{name: True})
-            func(*args, edit=True, **{name: value})
+            set_kwargs = edit_kwargs.copy()
+            set_kwargs[name] = value
+            func(*args, **set_kwargs)
             
         yield existing
         
@@ -110,7 +153,9 @@ def _edit(func, *args, **kwargs):
             
         # Reset them back to normal.
         for name, value in existing.iteritems():
-            func(*args, edit=True, **{name: value})
+            set_kwargs = edit_kwargs.copy()
+            set_kwargs[name] = value
+            func(*args, **set_kwargs)
     
 
 
