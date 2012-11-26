@@ -1,13 +1,15 @@
-import tempfile
-
 from maya import cmds
 
 from .. import context
 
+__also_reload__ = [
+    '..context',
+]
+
 
 settings = {
     'attrs': {
-        'defaultRenderGlobals.imageFormat': 8, # Image.
+        'defaultRenderGlobals.imageFormat': 8, # JPEG.
         'defaultResolution.width': 1280,
         'defaultResolution.height': 720,
         'defaultResolution.deviceAspectRatio': 1280.0 / 720,
@@ -23,7 +25,7 @@ settings = {
         'displayFilmGate': 0,
         'displayResolution': 1,
         'overscan': 1,
-    }
+    },
 }
 
 
@@ -35,7 +37,7 @@ def playblast(**kwargs):
     
     # So much state! Can we have Python2.7 now?
     with context.attrs(settings['attrs'], camera_attrs):
-        with context.edit(cmds.camera, camera, **settings['camera']):
+        with context.command(cmds.camera, camera, edit=True, **settings['camera']):
             with context.command(cmds.currentUnit, linear='cm', time='film'):
-                cmds.playblast(**kwargs)
+                return cmds.playblast(**kwargs)
 
