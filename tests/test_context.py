@@ -22,17 +22,17 @@ class TestAttrContext(TestCase):
         self.assertEqual(cmds.getAttr(attr), 2)
 
 
-class TestEditContext(TestCase):
+class TestEditCommandContext(TestCase):
 
     def test_basic_camera(self):
         transform, cam = cmds.camera(overscan=0)
-        with ctx.edit(cmds.camera, cam, overscan=1):
+        with ctx.command(cmds.camera, cam, edit=True, overscan=1):
             self.assertEqual(cmds.camera(cam, q=True, overscan=True), 1)
         self.assertEqual(cmds.camera(cam, q=True, overscan=True), 0)
     
     def test_mutate_camera(self):
         transform, cam = cmds.camera(overscan=0)
-        with ctx.edit('camera', cam, overscan=1) as original:
+        with ctx.command('camera', cam, edit=True, overscan=1) as original:
             self.assertEqual(cmds.camera(cam, q=True, overscan=True), 1)
             original['overscan'] = 0.5
         self.assertEqual(cmds.camera(cam, q=True, overscan=True), 0.5)
