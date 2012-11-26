@@ -11,23 +11,18 @@ mayatools
 
 .. automodule:: mayatools.context
     
-    Attributes
-    ^^^^^^^^^^
+    Attribute Contexts
+    ^^^^^^^^^^^^^^^^^^
     
     .. autofunction:: mayatools.context.attrs
     
-    Selection
-    ^^^^^^^^^
+    Selection Contexts
+    ^^^^^^^^^^^^^^^^^^
     
     .. autofunction:: mayatools.context.selection
     
-    Commands
-    ^^^^^^^^
+    Command Contexts
+    ^^^^^^^^^^^^^^^^
     
     .. autofunction:: mayatools.context.command
-    
-    Query/Edit Commands
-    ^^^^^^^^^^^^^^^^^^^
-    
-    .. autofunction:: mayatools.context.edit
-    
+
