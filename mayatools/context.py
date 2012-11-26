@@ -12,7 +12,7 @@ except ImportError:
 
 
 @contextlib.contextmanager
-def attr(*args, **kwargs):
+def attrs(*args, **kwargs):
     """Change some attributes, and reset them when leaving the context.
     
     :param args: Mappings of attributes to values.
@@ -22,7 +22,7 @@ def attr(*args, **kwargs):
     
     Useful for playblasting::
     
-        >>> with mayatools.context.attr({'defaultRenderGlobals.imageFormat': 8}):
+        >>> with mayatools.context.attrs({'defaultRenderGlobals.imageFormat': 8}):
         ...     # Playblast with confidence that the render globals will be reset.
     
     """
@@ -58,8 +58,9 @@ def edit(func, *args, **kwargs):
     :param func: A callable, or name of a Maya command.
     :param args: Positional arguments for the given ``func``.
     :param kwargs: Values to set within the context.
-    :returns: A dictionary of the original values will be bound to the target of
-        the with statement. Changed to that dictionary will be applied.
+    
+    A dictionary of the original values will be bound to the target of the with
+    statement. Changed to that dictionary will be applied.
     
     If you are already using a query/edit pattern like::
     
@@ -100,8 +101,9 @@ def command(func, *args, **kwargs):
     :param func: A callable, or name of a Maya command.
     :param args: Positional arguments for the given ``func``.
     :param kwargs: Values to set within the context.
-    :returns: A dictionary of the original values will be bound to the target of
-        the with statement. Changed to that dictionary will be applied.
+    
+    A dictionary of the original values will be bound to the target of the with
+    statement. Changed to that dictionary will be applied.
     
     If you are already using a query pattern like::
     
@@ -158,7 +160,33 @@ def _edit(func, edit_kwargs, *args, **kwargs):
             func(*args, **set_kwargs)
     
 
+@contextlib.contextmanager
+def selection(*args, **kwargs):
+    """A context manager that resets selections after exiting.
 
+    :param args: Passed to ``cmds.select``.
+    :param kwargs: Passed to ``cmds.select``.
+    
+    A list of the original selection will be bound to the target of the with
+    statement. Changes to that list will be applied.
+    
+    Example::
+    
+        >>> with selection(clear=True):
+        ...     # Do something with an empty selection.
+    
+    """
+    existing = cmds.ls(selection=True) or []
+    try:
+        if args or kwargs:
+            cmds.select(*args, **kwargs)
+        yield existing
+    finally:
+        if existing:
+            cmds.select(existing, replace=True)
+        else:
+            cmds.select(clear=True)
+    
 
 
 
