@@ -1,0 +1,128 @@
+"""Context managers for Maya state."""
+
+import contextlib
+import functools
+
+
+try:
+    from maya import cmds
+except ImportError:
+    # For Sphinx.
+    cmds = None
+
+
+@contextlib.contextmanager
+def attr(*args, **kwargs):
+    """Change some attributes, and reset them when leaving the context.
+    
+    :param args: Mappings of attributes to values.
+    :param kwargs: More attributes and values.
+    :returns: A dictionary of the original values will be bound to the target of
+        the with statement. Changed to that dictionary will be applied.
+    
+    Useful for playblasting::
+    
+        >>> with mayatools.context.attr({'defaultRenderGlobals.imageFormat': 8}):
+        ...     # Playblast with confidence that the render globals will be reset.
+    
+    """
+    
+    # Collect all the arguments.
+    for arg in args:
+        kwargs.update(arg)
+    
+    existing = {}
+    try:
+        
+        # Set all of the requested attributes.
+        for name, value in kwargs.iteritems():
+            existing[name] = cmds.getAttr(name)
+            cmds.setAttr(name, value)
+        
+        yield existing
+    
+    finally:
+        
+        # Reset them back to normal.
+        for name, value in existing.iteritems():
+            cmds.setAttr(name, value)
+
+
+def edit(func, *args, **kwargs):
+    """A context manager that uses the standard query/edit interface.
+    
+    Pass any values via keyword arguments and their original values will be
+    saved via ``func(*args, query=True, yourAttribute=True)``, and finally
+    restored via ``func(*args, edit=True, yourAttribute=original)``.
+    
+    :param func: A callable, or name of a Maya command.
+    :param args: Positional arguments for the given ``func``.
+    :param kwargs: Values to set within the context.
+    :returns: A dictionary of the original values will be bound to the target of
+        the with statement. Changed to that dictionary will be applied.
+    
+    If you are already using a query/edit pattern like::
+    
+        >>> original_overscan = cmds.camera(my_object, query=True, overscan=True)
+        >>> cmds.camera(my_object, edit=True, overscan=1)
+        >>> 
+        >>> try:
+        ...     # Do something.
+        ... finally:
+        ...     cmds.camera(my_object, edit=True, overscan=original_overscan)
+    
+    then you can use this manager directly::
+    
+        >>> with edit(cmds.camera, my_object, overscan=1) as originals:
+        ...     # Do something.
+    
+    or as a context manager factory::
+    
+        >>> camera = edit(cmds.camera)
+        >>> with camera(my_object, overscan=1) as originals:
+        ...     # Do something.
+    
+    """
+    
+    if kwargs:
+        return _edit(func, *args, **kwargs)
+    else:
+        return functools.partial(_edit, func, *args)
+
+
+@contextlib.contextmanager
+def _edit(func, *args, **kwargs):
+        
+    if isinstance(func, basestring):
+        func = getattr(cmds, name)
+        
+    existing = {}
+    try:
+            
+        # Set the requested parameters.
+        for name, value in kwargs.iteritems():
+            existing[name] = func(*args, query=True, **{name: True})
+            func(*args, edit=True, **{name: value})
+            
+        yield existing
+        
+    finally:
+            
+        # Reset them back to normal.
+        for name, value in existing.iteritems():
+            func(*args, edit=True, **{name: value})
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+

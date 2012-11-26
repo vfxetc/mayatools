@@ -1,0 +1,10 @@
+# General cruft.
+*.pyc
+.DS_Store
+._*
+
+# Makefile sentinels.
+*.make-sentinel
+
+# Build files.
+/docs/_build
