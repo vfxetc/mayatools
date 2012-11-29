@@ -30,10 +30,16 @@ settings = {
 
 
 def playblast(**kwargs):
-    
-    editor = cmds.playblast(activeEditor=True)
-    camera = cmds.modelPanel(editor, query=True, camera=True)
-    camera_attrs = dict((camera + '.' + k, v) for k, v in settings['camera_attrs'].iteritems())
+
+    # Extract the camera from the active view.
+    try:
+        editor = cmds.playblast(activeEditor=True)
+        camera = cmds.modelEditor(editor, query=True, camera=True)
+    except RuntimeError:
+        camera_attrs = {}
+        cmds.warning('Could not get camera for playblast')
+    else:
+        camera_attrs = dict((camera + '.' + k, v) for k, v in settings['camera_attrs'].iteritems())
     
     # So much state! Can we have Python2.7 now?
     with context.attrs(settings['attrs'], camera_attrs):
