@@ -84,12 +84,12 @@ class Picker(QtGui.QTabWidget):
             thumb = PlayblastThumbnail(playblast.first_frame)
             thumb.playblast = playblast
             table.setCellWidget(row, 0, thumb)
-            name = QtGui.QLabel(playblast.name)
-            name.setMargin(5)
-            table.setCellWidget(row, 1, name)
-            date = QtGui.QLabel(playblast.created_at.isoformat(' '))
-            date.setMargin(5)
-            table.setCellWidget(row, 2, date)
+            
+            name = QtGui.QTableWidgetItem(playblast.name)
+            table.setItem(row, 1, name)
+
+            date = QtGui.QTableWidgetItem(playblast.created_at.isoformat(' '))
+            table.setItem(row, 2, date)
         
         for table in tables.itervalues():
             table.resizeColumnToContents(1)
@@ -152,6 +152,7 @@ if __name__ == '__main__':
     
     app = QtGui.QApplication([])
     widget = Picker()
+    widget.autoSetMinimumWidth()
     widget.show()
     widget.raise_()
     app.exec_()
