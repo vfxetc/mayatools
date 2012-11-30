@@ -42,6 +42,10 @@ def playblast(**kwargs):
         camera = None
         camera_attrs = {}
     
+    # These should really be controlled elsewhere...
+    kwargs.setdefault('widthHeight', (1280, 720))
+    kwargs.setdefault('offScreen', True)
+    
     # So much state! Can we have Python2.7 now?
     with context.attrs(settings['attrs'], camera_attrs):
         with context.command(cmds.camera, camera, edit=True, **(settings['camera'] if camera else {})):
