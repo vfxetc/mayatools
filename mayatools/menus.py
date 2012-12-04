@@ -26,7 +26,7 @@ def setup_menu(shelf_button, button=1, dynamic=False, constructor=None, **kwargs
         postMenuCommand=functools.partial(constructor_dispatch, **kwargs),
         postMenuCommandOnce=not dynamic,
     )
-    
+
 
 def constructor_dispatch(maya_menu, parent, constructor=None, **kwargs):
     with ticket_ui_context():
@@ -34,10 +34,19 @@ def constructor_dispatch(maya_menu, parent, constructor=None, **kwargs):
         constructor = resolve_entrypoint(constructor) if constructor else default_constructor
         constructor(qt_menu, **kwargs)
 
+
 def default_constructor(menu, actions=None):
     res = []
     for spec in (actions or []):
+        
+        if spec.get('seperator'):
+            menu.addSeparator()
+            continue
+        
         action = menu.addAction(spec['label'], functools.partial(action_dispatch, **spec))
+        
+        # Find an icon in the XBMLANGPATH, which is the same path that Maya
+        # uses.
         if 'icon' in spec:
             base, ext = os.path.splitext(spec['icon'])
             name = base + (ext or '.png')
@@ -51,8 +60,10 @@ def default_constructor(menu, actions=None):
             else:
                 path = name
             action.setIcon(QtGui.QIcon(path))
+        
         res.append(action)
     return res
+
 
 def action_dispatch(entrypoint=None, python=None, **kwargs):
     with ticket_ui_context():
