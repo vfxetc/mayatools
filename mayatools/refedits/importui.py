@@ -78,7 +78,7 @@ class Dialog(QtGui.QDialog):
         self._type_box.setLayout(QtGui.QVBoxLayout())
         self.layout().addWidget(self._type_box)
         
-        self._namespace_box = QtGui.QGroupBox("Namespace Mappings")
+        self._namespace_box = QtGui.QGroupBox("Namespace Mappings (not implemented)")
         self._namespace_box.setLayout(QtGui.QVBoxLayout())
         self.layout().addWidget(self._namespace_box)
         
@@ -149,7 +149,15 @@ class Dialog(QtGui.QDialog):
             self._namespace_box.layout().addLayout(layout)
     
     def _on_reference(self, *args):
-        pass
+        
+        do_command = {}
+        for checkbox in self._command_boxes:
+            do_command[str(checkbox.text())] = checkbox.isChecked()
+        
+        for edit in self._edits:
+            if do_command.get(edit.command):
+                mel.eval(edit.source)
+        
         self.close()
 
 
