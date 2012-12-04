@@ -1,6 +1,7 @@
 import os
 import re
 import collections
+import traceback
 
 from PyQt4 import QtCore, QtGui
 Qt = QtCore.Qt
@@ -154,9 +155,21 @@ class Dialog(QtGui.QDialog):
         for checkbox in self._command_boxes:
             do_command[str(checkbox.text())] = checkbox.isChecked()
         
+        
+        failed = 0
         for edit in self._edits:
             if do_command.get(edit.command):
-                mel.eval(edit.source)
+                try:
+                    mel.eval(edit.source)
+                except Exception as e:
+                    cmds.warning(str(e))
+                    failed += 1
+        
+        (QtGui.QMessageBox.warning if failed else QtGui.QMessageBox.information)(
+            self,
+            "Applied Reference Edits",
+            "Applied %d edits with %d failures." % (len(self._edits) - failed, failed)
+        )
         
         self.close()
 
