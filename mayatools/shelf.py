@@ -56,26 +56,12 @@ def dispatch(entrypoint, args=(), kwargs={}, reload=None):
         result = func(*args, **kwargs)
     except Exception as e:
         try:
-            from PyQt4 import QtGui
-            from sgactions.ticketui import Dialog
+            from sgactions.ticketui import handle_current_exception
         except ImportError:
             raise e
         else:
-            msgbox = QtGui.QMessageBox()
-            msgbox.setIcon(msgbox.Critical)
-            msgbox.setWindowTitle('Python Exception')
-            msgbox.setText("Uncaught Python Exception: %s" % e.__class__.__name__)
-            msgbox.setInformativeText(str(e))
-            msgbox.addButton("Submit Ticket", msgbox.AcceptRole)
-            ignore = msgbox.addButton(msgbox.Ignore)
-            msgbox.setDefaultButton(ignore)
-            msgbox.setEscapeButton(ignore)
-            res = msgbox.exec_()
-            # Returns an int of the button code. Our custom one is 0.
-            if res:
-                return
-            dialog = Dialog([sys.exc_info()])
-            dialog.show()
+            if not handle_current_exception():
+                raise e
             return None
     
     return result
