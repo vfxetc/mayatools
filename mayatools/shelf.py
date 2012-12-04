@@ -9,14 +9,13 @@ import traceback
 
 import yaml
 
-import autoreload
-
 from maya import cmds, mel
 
 from .tickets import ticket_ui_context
+from .menus import setup_menu
+from .utils import resolve_entrypoint
 
-
-__also_reload__ = ['.tickets']
+__also_reload__ = ['.tickets', '.menus', '.utils']
 
 
 # Need somewhere to hold the button definitions so that buttons may update
@@ -24,44 +23,11 @@ __also_reload__ = ['.tickets']
 _uuid_to_buttons = {}
 
 
+    
+
 def dispatch(entrypoint, args=(), kwargs={}, reload=None):
     with ticket_ui_context():
-        
-        # Parse the entrypoint.
-        parts = entrypoint.split(':')
-        if len(parts) != 2:
-            cmds.error('Entrypoint must look like "package.module:function"; got %r' % entrypoint)
-            return
-        module_name, attribute = parts
-    
-        # If we can't directly import it, then import the package and get the
-        # module via attribute access. This is because of the `code` sub-package
-        # on many of the older tools.
-        try:
-            module = __import__(module_name, fromlist=['.'])
-        except ImportError, ie:
-            parts = module_name.rsplit('.', 1)
-            if len(parts) == 1:
-                raise ie
-            package_name, module_name = parts
-            package = __import__(package_name, fromlist=['.'])
-            try:
-                module = getattr(package, module_name)
-            except AttributeError:
-                raise ie
-        
-        # Reload if requested. `reload is None` is automatic. `reload is True`
-        # will always reload the direct module.
-        if reload or reload is None:
-            autoreload.autoreload(module, force_self=bool(reload))
-        
-        # Grab the function.
-        try:
-            func = getattr(module, attribute)
-        except AttributeError:
-            cmds.error('%r module has no %r attribute' % (module.__name__, attribute))
-            return
-    
+        func = resolve_entrypoint(entrypoint, reload=reload)
         return func(*args, **kwargs)
 
 
@@ -145,8 +111,12 @@ def load(shelf_path=None):
             
                 # Extract keys to remember buttons.
                 uuids = [button.get('entrypoint'), button.pop('uuid', None)]
-
+                
+                # Extract other commands.
                 doubleclick = button.pop('doubleclick', None)
+                popup_menu = button.pop('popup_menu', None)
+                context_menu = button.pop('context_menu', None)
+                
                 convert_entrypoints(button)
             
                 # Create the button!
@@ -173,6 +143,12 @@ def load(shelf_path=None):
                     doubleclick['doubleClickCommand'] = doubleclick.pop('command')
                     
                     cmds.shelfButton(button_name, edit=True, **doubleclick)
+                
+                # Add a popup menu if requested.
+                if popup_menu:
+                    setup_menu(shelf_button=button_name, button=1, **popup_menu)
+                if context_menu:
+                    setup_menu(shelf_button=button_name, button=3, **context_menu)
     
     # Reset all shelf "options"; Maya will freak out at us if we don't.
     for i, name in enumerate(cmds.shelfTabLayout(layout, q=True, childArray=True)):
@@ -317,7 +293,8 @@ def load_button():
     cmds.scriptJob(idleEvent=load, runOnce=True)
 
 
-def test_exception_button():
-    raise ValueError("This is a requested failure.")
+def test_exception_button(type_expr=None):
+    type_ = eval(type_expr) if type_expr else RuntimeError
+    raise type_("This is an expected failure.")
 
 
