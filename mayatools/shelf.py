@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 
-import __builtin__
 import os
 import re
 import sys
@@ -9,66 +8,67 @@ import copy
 import traceback
 
 import yaml
+
 import autoreload
 
 from maya import cmds, mel
 
-__also_reload__ = ['sgactions.ticketui']
+from .tickets import ticket_ui_context
+
+
+__also_reload__ = ['.tickets']
+
+
+# Need somewhere to hold the button definitions so that buttons may update
+# themselves later.
+_uuid_to_buttons = {}
 
 
 def dispatch(entrypoint, args=(), kwargs={}, reload=None):
-    
-    parts = entrypoint.split(':')
-    if len(parts) != 2:
-        cmds.error('Entrypoint must look like "package.module:function"; got %r' % entrypoint)
-        return
+    with ticket_ui_context():
         
-    module_name, attribute = parts
+        # Parse the entrypoint.
+        parts = entrypoint.split(':')
+        if len(parts) != 2:
+            cmds.error('Entrypoint must look like "package.module:function"; got %r' % entrypoint)
+            return
+        module_name, attribute = parts
     
-    # If we can't directly import it, then import the package and get the
-    # module via attribute access. This is because of the `code` sub-package
-    # on many of the older tools.
-    try:
-        module = __import__(module_name, fromlist=['.'])
-    except ImportError, ie:
-        parts = module_name.rsplit('.', 1)
-        if len(parts) == 1:
-            raise ie
-        package_name, module_name = parts
-        package = __import__(package_name, fromlist=['.'])
+        # If we can't directly import it, then import the package and get the
+        # module via attribute access. This is because of the `code` sub-package
+        # on many of the older tools.
         try:
-            module = getattr(package, module_name)
+            module = __import__(module_name, fromlist=['.'])
+        except ImportError, ie:
+            parts = module_name.rsplit('.', 1)
+            if len(parts) == 1:
+                raise ie
+            package_name, module_name = parts
+            package = __import__(package_name, fromlist=['.'])
+            try:
+                module = getattr(package, module_name)
+            except AttributeError:
+                raise ie
+        
+        # Reload if requested. `reload is None` is automatic. `reload is True`
+        # will always reload the direct module.
+        if reload or reload is None:
+            autoreload.autoreload(module, force_self=bool(reload))
+        
+        # Grab the function.
+        try:
+            func = getattr(module, attribute)
         except AttributeError:
-            raise ie
+            cmds.error('%r module has no %r attribute' % (module.__name__, attribute))
+            return
     
-    if reload or reload is None:
-        did_reload = autoreload.autoreload(module)
-        if reload and not did_reload:
-            __builtin__.reload(module)
-    
-    try:
-        func = getattr(module, attribute)
-    except AttributeError:
-        cmds.error('%r module has no %r attribute' % (module.__name__, attribute))
-        return
-    
-    try:
-        result = func(*args, **kwargs)
-    except Exception as e:
-        try:
-            from sgactions.ticketui import handle_current_exception
-        except ImportError:
-            raise e
-        else:
-            if not handle_current_exception():
-                raise e
-            return None
-    
-    return result
+        return func(*args, **kwargs)
 
 
 def _iter_buttons(path, _visited=None):
+    """Recursive iterator across the buttons in a path, respecting includes."""
     
+    # Stop infinite recursion.
     if _visited is None:
         _visited = set()
     if path in _visited:
@@ -90,19 +90,16 @@ def _iter_buttons(path, _visited=None):
             yield button
 
 
-if 'MAYA_SHELF_PATH' in os.environ:
-    default_shelf_path = os.environ['MAYA_SHELF_PATH'].split(':')
-else:
-    default_shelf_path = []
-
-
-_uuid_to_buttons = {}
 
 
 def load(shelf_path=None):
     
-    # Sort out shelf and icon directories.
-    shelf_path = shelf_path or default_shelf_path
+    # Default to the Maya shelf path.
+    if shelf_path is None:
+        shelf_path = os.environ.get('MAYA_SHELF_PATH')
+        shelf_path = shelf_path.split(':') if shelf_path else []
+    
+    # Single strings should be a list.
     if isinstance(shelf_path, basestring):
         shelf_path = [shelf_path]
     
@@ -140,21 +137,21 @@ def load(shelf_path=None):
         
             for b_i, button in enumerate(_iter_buttons(os.path.join(shelf_dir, file_name))):
             
-                raw_button = copy.deepcopy(button)
+                button_definition = copy.deepcopy(button)
             
                 # Defaults and basic setup.
                 button.setdefault('width', 34)
                 button.setdefault('height', 34)
             
-                # Be able to track buttons.
+                # Extract keys to remember buttons.
                 uuids = [button.get('entrypoint'), button.pop('uuid', None)]
-            
-                convert_entrypoints(button)
+
                 doubleclick = button.pop('doubleclick', None)
+                convert_entrypoints(button)
             
                 # Create the button!
                 try:
-                    raw_button['name'] = button_name = cmds.shelfButton(**button)
+                    button_definition['name'] = button_name = cmds.shelfButton(**button)
                 except TypeError:
                     print button
                     raise
@@ -162,15 +159,22 @@ def load(shelf_path=None):
                 # Save the button for later.
                 for uuid in uuids:
                     if uuid:
-                        _uuid_to_buttons.setdefault(uuid, []).append(raw_button)
-            
+                        _uuid_to_buttons.setdefault(uuid, []).append(button_definition)
+                
+                # Add a doubleclick action if requested.
                 if doubleclick:
+                    
                     convert_entrypoints(doubleclick)
+                    
+                    # Only pass through the two keywords that are allowed.
                     doubleclick = dict((k, v) for k, v in doubleclick.iteritems() if k in ('command', 'sourceType'))
+                    
+                    # Adapt to a doubleclick.
                     doubleclick['doubleClickCommand'] = doubleclick.pop('command')
+                    
                     cmds.shelfButton(button_name, edit=True, **doubleclick)
     
-    # Reset all shelf options; Maya will freak out at us if we don't.
+    # Reset all shelf "options"; Maya will freak out at us if we don't.
     for i, name in enumerate(cmds.shelfTabLayout(layout, q=True, childArray=True)):
         if name in shelf_names:
             cmds.optionVar(stringValue=(("shelfName%d" % (i + 1)), shelf_name))
@@ -205,6 +209,7 @@ def convert_entrypoints(button):
     # Don't let None commands escape into the Maya API.
     if 'command' in button and button['command'] is None:
         del button['command']
+
 
 def dump(shelves=None, shelf_dir=None, image_dir=None):
     
@@ -305,9 +310,14 @@ def dump(shelves=None, shelf_dir=None, image_dir=None):
 
 
 def load_button():
+    """Usable as a button in Maya to reload the shelves."""
+    
     # Must be done in the normal event loop since replacing reload button while
     # it is being called results in 2013 crashing.
     cmds.scriptJob(idleEvent=load, runOnce=True)
 
-def fail_button():
-    raise ValueError("this is a test")
+
+def test_exception_button():
+    raise ValueError("This is a requested failure.")
+
+
