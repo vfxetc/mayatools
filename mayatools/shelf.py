@@ -5,13 +5,15 @@ import os
 import re
 import sys
 import time
+import copy
+import traceback
 
 import yaml
 import autoreload
 
 from maya import cmds, mel
 
-
+__also_reload__ = ['sgactions.ticketui']
 
 
 def dispatch(entrypoint, args=(), kwargs={}, reload=None):
@@ -43,10 +45,38 @@ def dispatch(entrypoint, args=(), kwargs={}, reload=None):
         did_reload = autoreload.autoreload(module)
         if reload and not did_reload:
             __builtin__.reload(module)
-        
-    func = getattr(module, attribute)
     
-    result = func(*args, **kwargs)
+    try:
+        func = getattr(module, attribute)
+    except AttributeError:
+        cmds.error('%r module has no %r attribute' % (module.__name__, attribute))
+        return
+    
+    try:
+        result = func(*args, **kwargs)
+    except Exception as e:
+        try:
+            from PyQt4 import QtGui
+            from sgactions.ticketui import Dialog
+        except ImportError:
+            raise e
+        else:
+            msgbox = QtGui.QMessageBox()
+            msgbox.setIcon(msgbox.Critical)
+            msgbox.setWindowTitle('Python Exception')
+            msgbox.setText("Uncaught Python Exception: %s" % e.__class__.__name__)
+            msgbox.setInformativeText(str(e))
+            msgbox.addButton("Submit Ticket", msgbox.AcceptRole)
+            ignore = msgbox.addButton(msgbox.Ignore)
+            msgbox.setDefaultButton(ignore)
+            msgbox.setEscapeButton(ignore)
+            res = msgbox.exec_()
+            # Returns an int of the button code. Our custom one is 0.
+            if res:
+                return
+            dialog = Dialog([sys.exc_info()])
+            dialog.show()
+            return None
     
     return result
 
@@ -74,72 +104,95 @@ def _iter_buttons(path, _visited=None):
             yield button
 
 
-_last_load_shelf_dir = None
+if 'MAYA_SHELF_PATH' in os.environ:
+    default_shelf_path = os.environ['MAYA_SHELF_PATH'].split(':')
+else:
+    default_shelf_path = []
 
-def load(shelf_dir=None, image_dir=None):
+
+_uuid_to_buttons = {}
+
+
+def load(shelf_path=None):
     
-    global _last_load_shelf_dir
-    shelf_dir = shelf_dir or _last_load_shelf_dir
+    # Sort out shelf and icon directories.
+    shelf_path = shelf_path or default_shelf_path
+    if isinstance(shelf_path, basestring):
+        shelf_path = [shelf_path]
+    
+    # Clear out the button memory.
+    _uuid_to_buttons.clear()
     
     # Lookup the tab shelf that we will attach to.
     layout = mel.eval('$tmp=$gShelfTopLevel')
     
-    if shelf_dir is None:
-        shelf_dir = os.path.abspath(os.path.join(__file__, '..', '..', 'shelf'))
-    if image_dir is None:
-        image_dir = os.path.abspath(os.path.join(shelf_dir, '..', 'icons'))
-    
-    _last_load_shelf_dir = shelf_dir
-    
     shelf_names = set()
     
-    for file_name in sorted(os.listdir(shelf_dir)):
-        if file_name.startswith('.') or file_name.startswith('_') or not file_name.endswith('.yml'):
+    for shelf_dir in shelf_path:
+        try:
+            file_names = sorted(os.listdir(shelf_dir))
+        except IOError:
             continue
+        for file_name in file_names:
+            if file_name.startswith('.') or file_name.startswith('_') or not file_name.endswith('.yml'):
+                continue
             
-        shelf_name = file_name[:-4]
-        shelf_names.add(shelf_name)
-        print '# %s: %s' % (__name__, shelf_name)
+            shelf_name = file_name[:-4]
+            shelf_names.add(shelf_name)
+            print '# %s: %s' % (__name__, shelf_name)
         
-        # Delete buttons on existing shelves, and create shelves that don't
-        # already exist.
-        if cmds.shelfLayout(shelf_name, q=True, exists=True):
-            # Returns None if not loaded yet, so be careful.
-            for existing_button in cmds.shelfLayout(shelf_name, q=True, childArray=True) or []:
-                cmds.deleteUI(existing_button)
-            cmds.setParent(layout + '|' + shelf_name)
-        else:
-            cmds.setParent(layout)
-            cmds.shelfLayout(shelf_name)
+            # Delete buttons on existing shelves, and create shelves that don't
+            # already exist.
+            if cmds.shelfLayout(shelf_name, q=True, exists=True):
+                # Returns None if not loaded yet, so be careful.
+                for existing_button in cmds.shelfLayout(shelf_name, q=True, childArray=True) or []:
+                    cmds.deleteUI(existing_button)
+                cmds.setParent(layout + '|' + shelf_name)
+            else:
+                cmds.setParent(layout)
+                cmds.shelfLayout(shelf_name)
         
-        for b_i, button in enumerate(_iter_buttons(os.path.join(shelf_dir, file_name))):
+            for b_i, button in enumerate(_iter_buttons(os.path.join(shelf_dir, file_name))):
             
-            # Defaults and basic setup.
-            button.setdefault('width', 34)
-            button.setdefault('height', 34)
-            button['image'] = os.path.join(image_dir, button.get('image', 'generic.xpm'))
+                raw_button = copy.deepcopy(button)
             
-            convert_entrypoints(button)
-            doubleclick = button.pop('doubleclick', None)
+                # Defaults and basic setup.
+                button.setdefault('width', 34)
+                button.setdefault('height', 34)
             
-            # Create the button!
-            try:
-                button_name = cmds.shelfButton(**button)
-            except TypeError:
-                print button
-                raise
+                # Be able to track buttons.
+                uuids = [button.get('entrypoint'), button.pop('uuid', None)]
             
-            if doubleclick:
-                convert_entrypoints(doubleclick)
-                doubleclick = dict((k, v) for k, v in doubleclick.iteritems() if k in ('command', 'sourceType'))
-                doubleclick['doubleClickCommand'] = doubleclick.pop('command')
-                cmds.shelfButton(button_name, edit=True, **doubleclick)
+                convert_entrypoints(button)
+                doubleclick = button.pop('doubleclick', None)
+            
+                # Create the button!
+                try:
+                    raw_button['name'] = button_name = cmds.shelfButton(**button)
+                except TypeError:
+                    print button
+                    raise
+            
+                # Save the button for later.
+                for uuid in uuids:
+                    if uuid:
+                        _uuid_to_buttons.setdefault(uuid, []).append(raw_button)
+            
+                if doubleclick:
+                    convert_entrypoints(doubleclick)
+                    doubleclick = dict((k, v) for k, v in doubleclick.iteritems() if k in ('command', 'sourceType'))
+                    doubleclick['doubleClickCommand'] = doubleclick.pop('command')
+                    cmds.shelfButton(button_name, edit=True, **doubleclick)
     
     # Reset all shelf options; Maya will freak out at us if we don't.
     for i, name in enumerate(cmds.shelfTabLayout(layout, q=True, childArray=True)):
         if name in shelf_names:
             cmds.optionVar(stringValue=(("shelfName%d" % (i + 1)), shelf_name))
-    
+
+
+def buttons_from_uuid(uuid):
+    return list(_uuid_to_buttons.get(uuid, []))
+
 
 def convert_entrypoints(button):
 
@@ -269,3 +322,6 @@ def load_button():
     # Must be done in the normal event loop since replacing reload button while
     # it is being called results in 2013 crashing.
     cmds.scriptJob(idleEvent=load, runOnce=True)
+
+def fail_button():
+    raise ValueError("this is a test")
