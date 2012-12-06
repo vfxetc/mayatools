@@ -30,12 +30,14 @@ def setup_menu(shelf_button, button=1, dynamic=False, constructor=None, **kwargs
 
 def constructor_dispatch(maya_menu, parent, constructor=None, **kwargs):
     with ticket_ui_context():
-        qt_menu = maya_to_qt(maya_menu)
         constructor = resolve_entrypoint(constructor) if constructor else default_constructor
-        constructor(qt_menu, **kwargs)
+        constructor(maya_menu, **kwargs)
 
 
-def default_constructor(menu, actions=None):
+def default_constructor(maya_menu, actions=None):
+    
+    menu = maya_to_qt(maya_menu)
+    
     res = []
     for spec in (actions or []):
         
@@ -43,7 +45,10 @@ def default_constructor(menu, actions=None):
             menu.addSeparator()
             continue
         
-        action = menu.addAction(spec['label'], functools.partial(action_dispatch, **spec))
+        # We need to create the menu item via Maya, otherwise it doesn't work
+        # on linux.
+        maya_item = cmds.menuItem(parent=maya_menu, label=spec['label'], command=functools.partial(lambda *args, **spec: action_dispatch(**spec), **spec))
+        action = maya_to_qt(maya_item)
         
         # Find an icon in the XBMLANGPATH, which is the same path that Maya
         # uses.
