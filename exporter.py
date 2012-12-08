@@ -174,7 +174,7 @@ class Dialog(QtGui.QDialog):
         selection = set(cmds.ls(sl=True, type='transform') or ())
         self._cameras.clear()
         for camera in cmds.ls(type="camera"):
-            transform = cmds.listRelatives(camera, parent=True)[0]
+            transform = cmds.listRelatives(camera, parent=True, fullPath=True)[0]
             self._cameras.addItem(transform, (transform, camera))
             if (previous and previous == transform) or (not previous and transform in selection):
                 self._cameras.setCurrentIndex(self._cameras.count() - 1)
@@ -186,7 +186,8 @@ class Dialog(QtGui.QDialog):
     def _nodes_to_export(self):
         
         transform = str(self._cameras.currentText())
-        export = set(cmds.listRelatives(transform, allDescendents=True) or ())
+        print 'transform', repr(transform)
+        export = set(cmds.listRelatives(transform, allDescendents=True, fullPath=True) or ())
         
         parents = [transform]
         while parents:
@@ -194,7 +195,7 @@ class Dialog(QtGui.QDialog):
             if parent in export:
                 continue
             export.add(parent)
-            parents.extend(cmds.listRelatives(parent, allParents=True) or ())
+            parents.extend(cmds.listRelatives(parent, allParents=True, fullPath=True) or ())
         
         return export
         
