@@ -14,7 +14,7 @@ import sgpublish.exporter.maya
 import sgpublish.exporter.ui.publish.maya
 import sgpublish.exporter.ui.tabwidget
 import sgpublish.exporter.ui.workarea
-import sgpublish.ui.utils
+import sgpublish.uiutils
 
 import ks.maya.downgrade as downgrade
 
