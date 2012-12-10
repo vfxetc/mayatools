@@ -13,7 +13,7 @@ from maya import cmds, mel
 
 from .tickets import ticket_ui_context
 from .menus import setup_menu
-from .utils import resolve_entrypoint
+from . import utils
 
 __also_reload__ = ['.tickets', '.menus', '.utils']
 
@@ -27,7 +27,7 @@ _uuid_to_buttons = {}
 
 def dispatch(entrypoint, args=(), kwargs={}, reload=None):
     with ticket_ui_context():
-        func = resolve_entrypoint(entrypoint, reload=reload)
+        func = utils.resolve_entrypoint(entrypoint, reload=reload)
         return func(*args, **kwargs)
 
 
