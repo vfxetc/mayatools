@@ -30,7 +30,7 @@ __also_reload__ = [
 ]
 
 
-class CameraExporter(sgpublish.io.maya.Exporter):
+class CameraExporter(sgpublish.exporter.maya.Exporter):
 
     def __init__(self):
         super(CameraExporter, self).__init__(
@@ -137,11 +137,11 @@ class Dialog(QtGui.QDialog):
         box.setSizePolicy(QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Fixed)
         
         self._exporter = CameraExporter()
-        self._exporter_widget = sgpublish.ui.exporter.tabwidget.Widget()
+        self._exporter_widget = sgpublish.exporter.ui.tabwidget.Widget()
         self.layout().addWidget(self._exporter_widget)
         
         # Work area.
-        tab = sgpublish.ui.exporter.workarea.Widget(self._exporter, {
+        tab = sgpublish.exporter.ui.workarea.Widget(self._exporter, {
             'directory': 'scenes/camera',
             'sub_directory': '',
             'extension': '.ma',
@@ -151,7 +151,7 @@ class Dialog(QtGui.QDialog):
         self._exporter_widget.addTab(tab, "Export to Work Area")
         
         # SGPublishes.
-        tab = sgpublish.ui.exporter.maya.publish.Widget(self._exporter)
+        tab = sgpublish.exporter.ui.publish.maya.Widget(self._exporter)
         tab.beforeScreenshot.connect(lambda *args: self.hide())
         tab.afterScreenshot.connect(lambda *args: self.show())
         self._exporter_widget.addTab(tab, "Publish to Shotgun")
@@ -214,7 +214,7 @@ class Dialog(QtGui.QDialog):
             selection=list(self._nodes_to_export()),
         )
         if publisher:
-            sgpublish.ui.utils.announce_publish_success(publisher)
+            sgpublish.uiutils.announce_publish_success(publisher)
         self.close()
         
     def _warning(self, message):
