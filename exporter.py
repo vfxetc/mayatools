@@ -11,9 +11,9 @@ from maya import cmds, mel
 import sgfs.ui.scene_name.widget as scene_name
 
 import sgpublish.exporter.maya
-import sgpublish.ui.exporter.maya.publish
-import sgpublish.ui.exporter.tabwidget
-import sgpublish.ui.exporter.workarea
+import sgpublish.exporter.ui.maya.publish
+import sgpublish.exporter.ui.tabwidget
+import sgpublish.exporter.ui.workarea
 import sgpublish.ui.utils
 
 import ks.maya.downgrade as downgrade
