@@ -10,25 +10,14 @@ from maya import cmds, mel
 
 import sgfs.ui.scene_name.widget as scene_name
 
-import sgpublish.io.maya
-import sgpublish.ui.exporter.maya.publish
-import sgpublish.ui.exporter.tabwidget
-import sgpublish.ui.exporter.workarea
-import sgpublish.ui.utils
+import sgpublish.exporter.maya
+import sgpublish.exporter.ui.publish.maya
+import sgpublish.exporter.ui.tabwidget
+import sgpublish.exporter.ui.workarea
+import sgpublish.uiutils
 
 
-__also_reload__ = [
-    'sgfs.ui.scene_name.widget',
-    'sgpublish.io.base',
-    'sgpublish.io.maya',
-    'sgpublish.ui.exporter.maya.publish',
-    'sgpublish.ui.exporter.tabwidget',
-    'sgpublish.ui.exporter.workarea',
-    'sgpublish.ui.utils',
-]
-
-
-class RefEditExporter(sgpublish.io.maya.Exporter):
+class RefEditExporter(sgpublish.exporter.maya.Exporter):
 
     def __init__(self):
         filename = cmds.file(q=True, sceneName=True) or 'refedits'
@@ -85,11 +74,11 @@ class Dialog(QtGui.QDialog):
             self._refs.append((ref_name, ref_path, checkbox))
         
         self._exporter = RefEditExporter()
-        self._exporter_widget = sgpublish.ui.exporter.tabwidget.Widget()
+        self._exporter_widget = sgpublish.exporter.ui.tabwidget.Widget()
         self.layout().addWidget(self._exporter_widget)
         
         # Work area.
-        tab = sgpublish.ui.exporter.workarea.Widget(self._exporter, {
+        tab = sgpublish.exporter.ui.workarea.Widget(self._exporter, {
             'directory': 'data/refedits',
             'sub_directory': '',
             'extension': '.mel',
@@ -99,7 +88,7 @@ class Dialog(QtGui.QDialog):
         self._exporter_widget.addTab(tab, "Export to Work Area")
         
         # SGPublishes.
-        tab = sgpublish.ui.exporter.maya.publish.Widget(self._exporter)
+        tab = sgpublish.exporter.ui.publish.maya.Widget(self._exporter)
         tab.beforeScreenshot.connect(lambda *args: self.hide())
         tab.afterScreenshot.connect(lambda *args: self.show())
         self._exporter_widget.addTab(tab, "Publish to Shotgun")
@@ -116,7 +105,7 @@ class Dialog(QtGui.QDialog):
         references = [path for name, path, checkbox in self._refs if checkbox.isChecked()]
         publisher = self._exporter_widget.export(references=references)
         if publisher:
-            sgpublish.ui.utils.announce_publish_success(publisher)
+            sgpublish.uiutils.announce_publish_success(publisher)
         self.close()
         
     def _warning(self, message):
