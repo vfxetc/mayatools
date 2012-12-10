@@ -10,7 +10,7 @@ from maya import cmds, mel
 
 import sgfs.ui.scene_name.widget as scene_name
 
-import sgpublish.io.maya
+import sgpublish.exporter.maya
 import sgpublish.ui.exporter.maya.publish
 import sgpublish.ui.exporter.tabwidget
 import sgpublish.ui.exporter.workarea
