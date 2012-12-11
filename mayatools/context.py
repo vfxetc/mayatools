@@ -3,12 +3,7 @@
 import contextlib
 import functools
 
-
-try:
-    from maya import cmds
-except ImportError:
-    # For Sphinx.
-    cmds = None
+from maya import cmds
 
 
 @contextlib.contextmanager

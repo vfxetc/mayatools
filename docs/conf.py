@@ -11,6 +11,8 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
+from __future__ import absolute_import
+
 import datetime
 import os
 import sys
@@ -19,10 +21,15 @@ import sys
 read_the_docs = os.environ.get('READTHEDOCS', None) == 'True'
 
 # Stub out the Maya API.
-if read_the_docs:
-  sys.modules['maya.mel'] = sys.modules[__name__]
-  sys.modules['maya.cmds'] = sys.modules[__name__]
-  sys.modules['maya'] = sys.modules[__name__]
+try:
+    from maya import cmds
+    del cmds
+except ImportError:
+    class _Stub(object):
+        mel = None
+        cmds = None
+    sys.modules['maya'] = _Stub()
+    del _Stub
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
