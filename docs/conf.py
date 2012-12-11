@@ -253,6 +253,10 @@ texinfo_documents = [
 
 todo_include_todos = True
 
+extlinks = {
+    'cmds': ('http://download.autodesk.com/global/docs/maya2013/en_us/CommandsPython/%s.html', 'cmds.'),
+}
+
 intersphinx_mapping = {
     'python': ('http://docs.python.org/release/2.6.8/', None),
 }

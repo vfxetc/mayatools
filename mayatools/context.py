@@ -166,7 +166,11 @@ def suspend_refresh():
 
     Can be nested, where only the outermost context manager will resume
     refresing.
-    .. seealso:: :cmds:`refresh`
+
+    .. seealso::
+
+        There are caveats with disabling the refresh cycle. Be sure to 
+        read about :cmds:`refresh`.
 
     """
 

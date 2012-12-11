@@ -16,13 +16,21 @@ mayatools
     
     .. autofunction:: mayatools.context.attrs
     
+
     Selection Contexts
     ^^^^^^^^^^^^^^^^^^
     
     .. autofunction:: mayatools.context.selection
     
+
     Command Contexts
     ^^^^^^^^^^^^^^^^
     
     .. autofunction:: mayatools.context.command
+
+
+    Other Contexts
+    ^^^^^^^^^^^^^^
+
+    .. autofunction:: mayatools.context.suspend_refresh()
 
