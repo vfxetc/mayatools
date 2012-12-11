@@ -2,10 +2,6 @@ from maya import cmds
 
 from .. import context
 
-__also_reload__ = [
-    '..context',
-]
-
 
 settings = {
     'attrs': {

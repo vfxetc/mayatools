@@ -9,8 +9,6 @@ from .qt import maya_to_qt
 from .tickets import ticket_ui_context
 from .utils import resolve_entrypoint
 
-__also_reload__ = ['.qt', '.tickets', '.utils']
-
 
 def setup_menu(shelf_button, button=1, dynamic=False, constructor=None, **kwargs):
     

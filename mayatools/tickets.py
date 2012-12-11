@@ -19,12 +19,6 @@ import sgactions.ticketui
 import shotgun_api3_registry
 
 
-__also_reload__ = [
-    'sgactions.ticketui',
-]
-
-
-
 _registered = False
 def register_hook():
     _registered = True

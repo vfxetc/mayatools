@@ -15,8 +15,6 @@ from .tickets import ticket_ui_context
 from .menus import setup_menu
 from . import utils
 
-__also_reload__ = ['.tickets', '.menus', '.utils']
-
 
 # Need somewhere to hold the button definitions so that buttons may update
 # themselves later.
