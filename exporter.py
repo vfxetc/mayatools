@@ -19,6 +19,11 @@ import sgpublish.uiutils
 import ks.maya.downgrade as downgrade
 
 
+# Default Nuke Camera Vert Aperture
+DNCVA = 18.672
+MODULUS = 25.39999962
+
+
 class CameraExporter(sgpublish.exporter.maya.Exporter):
 
     def __init__(self):
@@ -80,6 +85,8 @@ class CameraExporter(sgpublish.exporter.maya.Exporter):
         if maya_version > 2011:
             downgrade.downgrade_to_2011(export_path, path)
         
+        self._export_nuke(os.path.splitext(path)[0] + '.nk', camera)
+
         # Restore camera settings.
         cmds.setAttr(camera + '.horizontalFilmOffset', original_zoom[0])
         cmds.setAttr(camera + '.verticalFilmOffset', original_zoom[1])
@@ -90,6 +97,80 @@ class CameraExporter(sgpublish.exporter.maya.Exporter):
             cmds.select(original_selection, replace=True)
         elif original_selection is not None:
             cmds.select(clear=True)
+
+    def _export_nuke(self, path, camera):
+
+        transform = cmds.listRelatives(camera, fullPath=True, parent=True)[0]
+
+        fh = open(path, 'w')
+
+        fh.write('Camera2 {\n')
+        fh.write('\tinputs 0\n')
+
+        name = filter(None, transform.split('|'))[-1]
+        name = re.sub(r'\W+', '__', name).strip('_')
+        fh.write('\tname "%s"\n' % name)
+
+        fh.write('\trot_order XYZ\n')
+        fh.write('\tselected true\n')
+        fh.write('\txpos 0\n')
+        fh.write('\typos 300\n')
+
+        min_time = int(cmds.playbackOptions(q=True, minTime=True))
+        max_time = int(cmds.playbackOptions(q=True, maxTime=True) + 1)
+
+        ts = []
+        rs = []
+        fs = []
+        hfas = []
+        vfas = []
+
+        for time in xrange(min_time, max_time):
+            cmds.currentTime(time)
+
+            ts.append(
+                cmds.xform(transform, q=True, worldSpace=True, translation=True)
+            )
+            rs.append(
+                cmds.xform(transform, q=True, worldSpace=True, rotation=True)
+            )
+            fs.append(
+                cmds.camera(camera, q=True, focalLength=True)
+            )
+            hfas.append(
+                cmds.camera(camera, q=True, horizontalFilmAperture=True) * MODULUS
+            )
+            vfas.append(
+                cmds.camera(camera, q=True, verticalFilmAperture=True) * MODULUS
+            )
+
+        fh.write('\ttranslate {\n')
+        for i in xrange(3):
+            fh.write('\t\t{curve x%d ' % min_time)
+            fh.write(' '.join(str(x[i]) for x in ts))
+            fh.write('}\n')
+        fh.write('\t}\n')
+
+        fh.write('\trotate {\n')
+        for i in xrange(3):
+            fh.write('\t\t{curve x%d ' % min_time)
+            fh.write(' '.join(str(x[i]) for x in rs))
+            fh.write('}\n')
+        fh.write('\t}\n')
+
+        fh.write('\tfocal {{curve x%d ' % min_time)
+        fh.write(' '.join(str(x) for x in fs))
+        fh.write('}}\n')
+
+        fh.write('\thaperture {{curve x%d ' % min_time)
+        fh.write(' '.join(str(x) for x in hfas))
+        fh.write('}}\n')
+
+        fh.write('\tvaperture {{curve x%d ' % min_time)
+        fh.write(' '.join(str(x) for x in vfas))
+        fh.write('}}\n')
+
+        fh.write('}\n')
 
 
 class Dialog(QtGui.QDialog):
