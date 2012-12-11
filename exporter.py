@@ -10,6 +10,8 @@ from maya import cmds, mel
 
 import sgfs.ui.scene_name.widget as scene_name
 
+import mayatools.context
+
 import sgpublish.exporter.maya
 import sgpublish.exporter.ui.publish.maya
 import sgpublish.exporter.ui.tabwidget
@@ -125,24 +127,26 @@ class CameraExporter(sgpublish.exporter.maya.Exporter):
         hfas = []
         vfas = []
 
-        for time in xrange(min_time, max_time):
-            cmds.currentTime(time)
+        with mayatools.context.suspend_refresh():
 
-            ts.append(
-                cmds.xform(transform, q=True, worldSpace=True, translation=True)
-            )
-            rs.append(
-                cmds.xform(transform, q=True, worldSpace=True, rotation=True)
-            )
-            fs.append(
-                cmds.camera(camera, q=True, focalLength=True)
-            )
-            hfas.append(
-                cmds.camera(camera, q=True, horizontalFilmAperture=True) * MODULUS
-            )
-            vfas.append(
-                cmds.camera(camera, q=True, verticalFilmAperture=True) * MODULUS
-            )
+            for time in xrange(min_time, max_time):
+                cmds.currentTime(time, edit=True)
+
+                ts.append(
+                    cmds.xform(transform, q=True, worldSpace=True, translation=True)
+                )
+                rs.append(
+                    cmds.xform(transform, q=True, worldSpace=True, rotation=True)
+                )
+                fs.append(
+                    cmds.camera(camera, q=True, focalLength=True)
+                )
+                hfas.append(
+                    cmds.camera(camera, q=True, horizontalFilmAperture=True) * MODULUS
+                )
+                vfas.append(
+                    cmds.camera(camera, q=True, verticalFilmAperture=True) * MODULUS
+                )
 
         fh.write('\ttranslate {\n')
         for i in xrange(3):
