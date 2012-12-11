@@ -8,13 +8,38 @@ from maya import cmds, mel
 
 from sgfs.ui import product_select
 import sgfs.ui.scene_name.widget as scene_name
+from sgpublish.importer.generic import Importer
+from sgpublish.importer.ui.dialog import ImportDialog
+from sgpublish.importer.ui.workarea import WorkAreaImporter
+from sgpublish.importer.ui.publish import PublishImporter
 
 
-class CameraSelector(product_select.Layout):
+class CameraImporter(Importer):
+
+    def import_(self, path):
+        try:
+            ref_node = cmds.referenceQuery(path, referenceNode=True)
+        except RuntimeError:
+            pass
+        else:
+            cmds.warning('Already referenced')
+            return
+        cmds.file(path, reference=True)
+
+
+class Dialog(ImportDialog):
     
-    def _setup_sections(self):
-        super(CameraSelector, self)._setup_sections()
-        self.register_section('Camera', self._iter_cameras)
+    importer_class = CameraImporter
+
+    def __init__(self, **kwargs):
+        super(Dialog, self).__init__(**kwargs)
+        
+        workarea = WorkAreaImporter(self.importer)
+        workarea.picker.register_section('Camera', self._iter_cameras)
+        self.tabs.addTab(workarea, "From Work Area")
+
+        publish = PublishImporter(self.importer, publish_type='maya_camera')
+        self.tabs.addTab(publish, "From Publish")
     
     def _iter_cameras(self, step_path):
         if step_path is None:
@@ -23,10 +48,15 @@ class CameraSelector(product_select.Layout):
         if os.path.exists(camera_dir):
             for name in os.listdir(camera_dir):
                 
+                # Tempfiles.
                 if name.startswith('.'):
                     continue
+
+                # WesternX deals with ascii cameras.
                 if not name.endswith('.ma'):
                     continue
+
+                # Skip the versioned ones.
                 if re.search(r'\.20\d{2}\.ma$', name):
                     continue
                 
@@ -35,48 +65,19 @@ class CameraSelector(product_select.Layout):
                     priority = tuple(int(x or 0) for x in m.groups())
                 else:
                     priority = (0, 0)
+
                 cam_path = os.path.join(camera_dir, name)
+
                 try:
                     ref_node = cmds.referenceQuery(cam_path, referenceNode=True)
                 except RuntimeError:
                     pass
                 else:
                     name += ' (already referenced)'
-                    priority = (-1, 0)
+                    priority = (-1, 0) # Drop it to the bottom.
                 
                 yield name, cam_path, priority
 
-
-class Dialog(QtGui.QDialog):
-    
-    def __init__(self):
-        super(Dialog, self).__init__()
-        self._setup_ui()
-    
-    def _setup_ui(self):
-        
-        self.setWindowTitle("Camera Import")
-        self.setLayout(QtGui.QVBoxLayout())
-        
-        self._selector = CameraSelector(parent=self)
-        self.layout().addLayout(self._selector)
-        
-        button = QtGui.QPushButton("Reference")
-        button.clicked.connect(self._on_reference)
-        self.layout().addWidget(button)
-    
-    def _on_reference(self, *args):
-        path = self._selector.path()
-        if path:
-            try:
-                ref_node = cmds.referenceQuery(path, referenceNode=True)
-            except RuntimeError:
-                pass
-            else:
-                cmds.warning('Already referenced')
-                return
-            cmds.file(path, reference=True)
-        self.close()
 
 
 
