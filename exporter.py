@@ -18,17 +18,6 @@ import sgpublish.uiutils
 
 import ks.maya.downgrade as downgrade
 
-__also_reload__ = [
-    'ks.maya.downgrade',
-    'sgfs.ui.scene_name.widget',
-    'sgpublish.io.base',
-    'sgpublish.io.maya',
-    'sgpublish.ui.exporter.maya.publish',
-    'sgpublish.ui.exporter.tabwidget',
-    'sgpublish.ui.exporter.workarea',
-    'sgpublish.ui.utils',
-]
-
 
 class CameraExporter(sgpublish.exporter.maya.Exporter):
 

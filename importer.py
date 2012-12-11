@@ -9,11 +9,6 @@ from maya import cmds, mel
 from sgfs.ui import product_select
 import sgfs.ui.scene_name.widget as scene_name
 
-__also_reload__ = [
-    'sgfs.ui.scene_name.widget',
-    'sgfs.ui.product_select',
-]
-
 
 class CameraSelector(product_select.Layout):
     
