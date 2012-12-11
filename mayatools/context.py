@@ -157,6 +157,30 @@ def selection(*args, **kwargs):
             cmds.select(clear=True)
     
 
+_suspend_depth = 0
+
+@contextlib.contextmanager
+def suspend_refresh():
+    """A context mananger that stops the graph from running or the view
+    updating.
+
+    Can be nested, where only the outermost context manager will resume
+    refresing.
+    .. seealso:: :cmds:`refresh`
+
+    """
+
+    global _suspend_depth
+    try:
+        if not _suspend_depth:
+            cmds.refresh(suspend=True)
+        _suspend_depth += 1
+        yield
+    finally:
+        _suspend_depth -= 1
+        if not _suspend_depth:
+            cmds.refresh(suspend=False)
+
 
 
 
