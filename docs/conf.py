@@ -18,6 +18,12 @@ import sys
 # Detect if we are on Read the Docs
 read_the_docs = os.environ.get('READTHEDOCS', None) == 'True'
 
+# Stub out the Maya API.
+if read_the_docs:
+  sys.modules['maya.mel'] = sys.modules[__name__]
+  sys.modules['maya.cmds'] = sys.modules[__name__]
+  sys.modules['maya'] = sys.modules[__name__]
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
