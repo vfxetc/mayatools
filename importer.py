@@ -855,13 +855,6 @@ class Dialog(QtGui.QDialog):
             cmds.select(clear=True)
 
 
-__also_reload__ = [
-    'ks.core.scene_name.core',
-    'ks.core.product_select',
-    'ks.maya.geocache.utils',
-]
-
-
 def __before_reload__():
     # We have to manually clean this, since we aren't totally sure it will
     # always fall out of scope.
