@@ -32,7 +32,7 @@ class CameraSelector(product_select.Layout):
                 
                 m = re.search(r'v(\d+)(?:_r(\d+))?', name)
                 if m:
-                    priority = tuple(int(x) for x in m.groups())
+                    priority = tuple(int(x or 0) for x in m.groups())
                 else:
                     priority = (0, 0)
                 cam_path = os.path.join(camera_dir, name)
