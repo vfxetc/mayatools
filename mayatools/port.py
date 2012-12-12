@@ -7,6 +7,10 @@ import select
 import re
 import tempfile
 import functools
+import threading
+
+
+_shutdown_lock = threading.Lock()
 
 
 class CmdsProxy(object):
@@ -23,26 +27,29 @@ class CommandSock(object):
     def __init__(self):
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.buffer = ''
+        self.lock = threading.Lock()
 
     def send(self, msg):
-        while msg:
-            _, wlist, _ = select.select([], [self.sock], [], 0.1)
-            if not wlist:
-                raise RuntimeError('timeout')
-            sent = self.sock.send(msg)
-            if not sent:
-                # I'm not sure if we will ever hit this...
-                raise RuntimeError('socket did not accept data')
-            msg = msg[sent:]
+        with self.lock:
+            while msg:
+                _, wlist, _ = select.select([], [self.sock], [], 0.1)
+                if not wlist:
+                    raise RuntimeError('timeout')
+                sent = self.sock.send(msg)
+                if not sent:
+                    # I'm not sure if we will ever hit this...
+                    raise RuntimeError('socket did not accept data')
+                msg = msg[sent:]
 
     def recv(self, timeout=None):
-        while '\0' not in self.buffer:
-            rlist, _, _ = select.select([self.sock], [], [], timeout)
-            if not rlist:
-                raise RuntimeError('timeout')
-            self.buffer += self.sock.recv(8096)
-        msg, self.buffer = self.buffer.split('\0', 1)
-        return msg
+        with self.lock:
+            while '\0' not in self.buffer:
+                rlist, _, _ = select.select([self.sock], [], [], timeout)
+                if not rlist:
+                    raise RuntimeError('timeout')
+                self.buffer += self.sock.recv(8096)
+            msg, self.buffer = self.buffer.split('\0', 1)
+            return msg
 
     def __getattr__(self, name):
         return getattr(self.sock, name)
@@ -67,8 +74,9 @@ class CommandPort(object):
             else:
                 raise ValueError('no Maya sockets in /var/tmp')
 
-        # Setup a dedicated commandPort.
-        self._tempfile = tempfile.NamedTemporaryFile(suffix='.pysock')
+        # Setup a dedicated commandPort. We let Maya delete the socket when it is done with it, but
+        # we do try ourselves at the very end.
+        self._tempfile = tempfile.NamedTemporaryFile(prefix='maya_child.', suffix='.pysock', delete=False)
         sock.send('cmds.commandPort(name=%r, sourceType="python")\n' % self._tempfile.name)
         sock.recv(1)
         self.sock = CommandSock()
@@ -77,9 +85,21 @@ class CommandPort(object):
         # Setup command proxy.
         self.cmds = CmdsProxy(self)
 
-
     def __del__(self):
-        self.sock.send('cmds.commandPort(name=%r, close=True)\n' % self._tempfile.name)
+        self.close()
+    
+    def close(self):
+
+        # Need to serialize this access, otherwise we *will* crash Maya.
+        with _shutdown_lock:
+            self.send('cmds.commandPort(name=%r, close=True)\n' % self._tempfile.name)
+            self.recv(0.1)
+
+        # Kill the file if Maya didn't.
+        try:
+            os.unlink(self._tempfile.name)
+        except OSError:
+            pass
 
     def call(self, func, args=None, kwargs=None, timeout=None):
         package = base64.b64encode(pickle.dumps((func, args or (), kwargs or {})))
