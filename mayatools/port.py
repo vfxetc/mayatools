@@ -15,61 +15,77 @@ class CmdsProxy(object):
         self._proc = proc
 
     def __getattr__(self, name):
-        return functools.partial(self._proc.call, 'maya.cmds:%s' % name)
+        return functools.partial(self._proc, 'maya.cmds:%s' % name)
+
+
+class CommandSock(object):
+
+    def __init__(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.buffer = ''
+
+    def send(self, msg):
+        while msg:
+            _, wlist, _ = select.select([], [self.sock], [], 0.1)
+            if not wlist:
+                raise RuntimeError('timeout')
+            sent = self.sock.send(msg)
+            if not sent:
+                # I'm not sure if we will ever hit this...
+                raise RuntimeError('socket did not accept data')
+            msg = msg[sent:]
+
+    def recv(self, timeout=None):
+        while '\0' not in self.buffer:
+            rlist, _, _ = select.select([self.sock], [], [], timeout)
+            if not rlist:
+                raise RuntimeError('timeout')
+            self.buffer += self.sock.recv(8096)
+        msg, self.buffer = self.buffer.split('\0', 1)
+        return msg
+
+    def __getattr__(self, name):
+        return getattr(self.sock, name)
 
 
 class CommandPort(object):
 
     def __init__(self, addr=None):
         
-        self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        for addr in glob.glob('/var/tmp/maya.*.pysock'):
-            try:
-                self._sock.connect(addr)
-            except socket.error:
-                continue
-            else:
-                break
-        else:
-            raise ValueError('no Maya sockets in /var/tmp')
-        
-        self._buffer = ''
+        sock = CommandSock()
 
-        # Setup a child socket.
+        if addr:
+            sock.connect(addr)
+        else:
+            for addr in glob.glob('/var/tmp/maya.*.pysock'):
+                try:
+                    sock.connect(addr)
+                except socket.error:
+                    continue
+                else:
+                    break
+            else:
+                raise ValueError('no Maya sockets in /var/tmp')
+
+        # Setup a dedicated commandPort.
         self._tempfile = tempfile.NamedTemporaryFile(suffix='.pysock')
-        self._send('cmds.commandPort(name=%r, sourceType="python")\n' % self._tempfile.name)
-        self._recv(1)
-        self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self._sock.connect(self._tempfile.name)
+        sock.send('cmds.commandPort(name=%r, sourceType="python")\n' % self._tempfile.name)
+        sock.recv(1)
+        self.sock = CommandSock()
+        self.sock.connect(self._tempfile.name)
 
         # Setup command proxy.
         self.cmds = CmdsProxy(self)
 
 
     def __del__(self):
-        self._send('cmds.commandPort(name=%r, close=True)\n' % self._tempfile.name)
+        self.sock.send('cmds.commandPort(name=%r, close=True)\n' % self._tempfile.name)
 
-    def _send(self, msg):
-        while msg:
-            sent = self._sock.send(msg)
-            if not sent:
-                raise RuntimeError('didnt send anything')
-            msg = msg[sent:]
-
-    def _recv(self, timeout=None):
-        while '\0' not in self._buffer:
-            rlist, _, _ = select.select([self._sock], [], [], timeout)
-            if not rlist:
-                raise RuntimeError('timeout')
-            self._buffer += self._sock.recv(8096)
-        msg, self._buffer = self._buffer.split('\0', 1)
-        return msg
-
-    def call(self, func, *args, **kwargs):
-        package = base64.b64encode(pickle.dumps((func, args, kwargs)))
+    def call(self, func, args=None, kwargs=None, timeout=None):
+        package = base64.b64encode(pickle.dumps((func, args or (), kwargs or {})))
         expr = '__import__(%r, fromlist=["."]).dispatch(%r)\n' % (__name__, package)
-        self._send(expr)
-        res = self._recv(1)
+        self.sock.send(expr)
+        res = self.sock.recv()
         res = pickle.loads(base64.b64decode(res))
         if res.get('status') == 'ok':
             return res['res']
@@ -77,11 +93,14 @@ class CommandPort(object):
             raise res['type'](*res['args'])
         raise RuntimeError('bad response: %r' % res)
 
-    def eval(self, expr, *args):
-        return self.call(eval, *args)
+    def __call__(self, func, *args, **kwargs):
+        return self.call(func, args, kwargs)
 
-    def mel(self, expr):
-        return self.call('maya.mel:eval', expr)
+    def eval(self, expr, *args, **kwargs):
+        return self.call(eval, args, **kwargs)
+
+    def mel(self, expr, **kwargs):
+        return self.call('maya.mel:eval', [expr], **kwargs)
 
 
 # Convenient!
@@ -103,7 +122,6 @@ def dispatch(package):
     func, args, kwargs = pickle.loads(base64.b64decode(package))
     func = _get_func(func)
     try:
-        print func, args, kwargs
         res = dict(status='ok', res=func(*args, **kwargs))
     except Exception as e:
         res = dict(status='exception', type=e.__class__, args=e.args)
