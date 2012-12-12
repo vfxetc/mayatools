@@ -18,7 +18,7 @@ def standard_setup():
     cmds.commandPort(name=sock, sourceType='python')
     print 'unix commandPort at %s' % sock
 
-    # Tear it down later.
+    # Tear it down later. (This only seems to work in 2013.)
     def close_command_port():
 
         try:
