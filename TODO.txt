@@ -1,0 +1,9 @@
+
+- Use a Python thread and socket server to handle our command ports.
+    - Then we can carry it straight to Nuke.
+
+- context.parent
+- context.progress as p
+    Wrap progressWindow, or the main progress bar
+
+
