@@ -21,6 +21,8 @@ def standard_setup():
     except ImportError:
         cmds.warning('Could not import remotecontrol.server.maya.')
     else:
+        if os.path.exists(sock1):
+            os.unlink(sock1)
         remotecontrol.server.maya.spawn(sock1)
 
     sock2 = base + '.pysock'
@@ -29,6 +31,8 @@ def standard_setup():
     except ImportError:
         cmds.warning('Could not import remotecontrol.interpreter.maya.')
     else:
+        if os.path.exists(sock2):
+            os.unlink(sock2)
         remotecontrol.interpreter.maya.spawn(sock2)
 
 
