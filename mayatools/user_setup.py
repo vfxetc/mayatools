@@ -13,7 +13,7 @@ def standard_setup():
     import datetime
     import sys
 
-    base = '/var/tmp/maya.%s' % datetime.datetime.utcnow().strftime('%y%m%d.%H%M%S.%f')
+    base = '/var/tmp/maya.%s' % os.getpid()
 
     sock1 = base + '.cmdsock'
     try:
