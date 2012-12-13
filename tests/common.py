@@ -4,7 +4,9 @@ import maya.standalone
 from maya import cmds
 
 
-maya.standalone.initialize()
+if not hasattr(cmds, 'sphere'):
+    maya.standalone.initialize()
+
 
 
 class TestCase(BaseTestCase):
