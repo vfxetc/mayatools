@@ -5,6 +5,8 @@ import optparse
 
 def run_remote(working_dir, argv, sys_path=None):
 
+    old_modules = set(sys.modules)
+
     old_working_dir = os.getcwd()
     os.chdir(working_dir)
 
@@ -21,6 +23,11 @@ def run_remote(working_dir, argv, sys_path=None):
         # Nope!
     finally:
         os.chdir(old_working_dir)
+        for name in sorted(sys.modules):
+            if name in old_modules:
+                continue
+            print '# Cleanup', name
+            del sys.modules[name]
 
 
 if __name__ == '__main__':
