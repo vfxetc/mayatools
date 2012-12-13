@@ -10,27 +10,42 @@ def standard_setup():
     
     import os
     import tempfile
-    import time
+    import datetime
     import sys
 
-    # Create a commandPort.
-    sock = tempfile.NamedTemporaryFile(prefix='maya.', suffix='.pysock', delete=False).name
-    cmds.commandPort(name=sock, sourceType='python')
-    print 'unix commandPort at %s' % sock
+    base = '/var/tmp/maya.%s' % datetime.datetime.utcnow().strftime('%y%m%d.%H%M%S.%f')
+
+    sock1 = base + '.cmdsock'
+    try:
+        import remotecontrol.server.maya
+    except ImportError:
+        cmds.warning('Could not import remotecontrol.server.maya.')
+    else:
+        remotecontrol.server.maya.spawn(sock1)
+
+    sock2 = base + '.pysock'
+    try:
+        import remotecontrol.interpreter.maya
+    except ImportError:
+        cmds.warning('Could not import remotecontrol.interpreter.maya.')
+    else:
+        remotecontrol.interpreter.maya.spawn(sock2)
+
 
     # Tear it down later. (This only seems to work in 2013.)
     def close_command_port():
 
         try:
-            cmds.commandPort(name=sock, close=True)
+            if os.path.exists(sock1):
+                os.unlink(sock1)
         except Exception as e:
-            sys.__stdout__.write('%s while closing commandPort: %s\n' % (e.__class__.__name__, e))
+            sys.__stdout__.write('%s while unlinking %s: %s\n' % (e.__class__.__name__, sock1, e))
 
         try:
-            if os.path.exists(sock):
-                os.unlink(sock)
+            if os.path.exists(sock2):
+                os.unlink(sock2)
         except Exception as e:
-            sys.__stdout__.write('%s while unlinking commandPort socket: %s\n' % (e.__class__.__name__, e))
+            sys.__stdout__.write('%s while unlinking %s: %s\n' % (e.__class__.__name__, sock2, e))
     
     cmds.scriptJob(event=('quitApplication', close_command_port))
 
