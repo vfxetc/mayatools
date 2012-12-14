@@ -59,7 +59,7 @@ def run(working_dir=None, argv=None, sys_path=None):
     import nose.core
     
     try:
-        nose.core.main(argv=['nosetests'] + list(argv or []))
+        nose.core.main(argv=['maya-nosetests'] + list(argv or []))
     except SystemExit:
         pass
         # Nope!
