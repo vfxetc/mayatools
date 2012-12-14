@@ -54,7 +54,7 @@ def run(working_dir=None, argv=None, sys_path=None):
 
     # Extend the path so we can find nose.
     if sys_path:
-        sys.path[:0] = sys_path
+        sys.path.extend(sys_path)
 
     import nose.core
     
@@ -77,9 +77,14 @@ def run(working_dir=None, argv=None, sys_path=None):
 
 if __name__ == '__main__':
 
-    # Find nose.
+    # Find some packages that aren't normally in Maya.
+    # This is a current limitation of the Western X environment.
     import nose
-    nose_path = os.path.dirname(os.path.dirname(nose.__file__))
+    import greenlet
+    sys_path = [
+        os.path.dirname(os.path.dirname(nose.__file__)),
+        os.path.dirname(greenlet.__file__),
+    ]
 
     opt_parser = optparse.OptionParser()
     opt_parser.add_option('-r', '--remote', action='store_true', dest='remote')
@@ -92,7 +97,7 @@ if __name__ == '__main__':
 
         from remotecontrol.client import open as open_remote
         remote = open_remote(unix_glob='/var/tmp/maya.*.cmdsock')
-        remote.call('mayatools.test:run', (os.getcwd(), args, [nose_path]), main_thread=False)
+        remote.call('mayatools.test:run', (os.getcwd(), args, sys_path), main_thread=False)
 
     else:
 
