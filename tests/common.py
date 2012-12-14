@@ -4,6 +4,8 @@ import sys
 from unittest import TestCase as BaseTestCase
 
 from uitools import trampoline
+from uitools.trampoline import bounce, sleep
+
 from mayatools.test import requires_maya
 
 
@@ -27,8 +29,8 @@ else:
 
 class TestCase(BaseTestCase):
     
+    @requires_maya
     def setUp(self):
-        if has_maya:
-            cmds.file(new=True, force=True)
+        cmds.file(new=True, force=True)
 
 

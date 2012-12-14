@@ -7,15 +7,14 @@ import functools
 
 try:
     import maya.cmds as maya_cmds
-    import maya.utils as maya_utils
 except ImportError:
     _has_maya = False
 else:
     _has_maya = maya_cmds is not None
 
-
 from uitools import trampoline
 
+from . import threads
 
 
 def requires_maya(func=None, gui=False):
@@ -38,19 +37,20 @@ def requires_maya(func=None, gui=False):
 
     # Not in batch mode, so we need to run in the main thread.
     if not maya_cmds.about(batch=True):
-        trampoliner = trampoline.decorate(maya_utils.executeInMainThreadWithResult)
+        trampoliner = trampoline.decorate(threads.call_in_main_thread)
         return trampoliner(func)
 
     # Pass it through.
     return func
 
 
-def _run_remote(working_dir, argv, sys_path=None):
+def run(working_dir=None, argv=None, sys_path=None):
 
     old_modules = set(sys.modules)
 
-    old_working_dir = os.getcwd()
-    os.chdir(working_dir)
+    if working_dir is not None:
+        old_working_dir = os.getcwd()
+        os.chdir(working_dir)
 
     # Extend the path so we can find nose.
     if sys_path:
@@ -59,12 +59,13 @@ def _run_remote(working_dir, argv, sys_path=None):
     import nose.core
     
     try:
-        nose.core.main(argv=argv)
+        nose.core.main(argv=['nosetests'] + list(argv or []))
     except SystemExit:
         pass
         # Nope!
     finally:
-        os.chdir(old_working_dir)
+        if working_dir is not None:
+            os.chdir(old_working_dir)
         cleaned = 0
         for name in sorted(sys.modules):
             if name in old_modules:
@@ -91,7 +92,7 @@ if __name__ == '__main__':
 
         from remotecontrol.client import open as open_remote
         remote = open_remote(unix_glob='/var/tmp/maya.*.cmdsock')
-        remote.call('mayatools.test:_run_remote', (os.getcwd(), args, [nose_path]), main_thread=False)
+        remote.call('mayatools.test:run', (os.getcwd(), args, [nose_path]), main_thread=False)
 
     else:
 
