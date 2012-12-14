@@ -11,10 +11,11 @@ try:
 except ImportError:
     _has_maya = False
 else:
-    _has_maya = True
+    _has_maya = maya_cmds is not None
 
 
 from uitools import trampoline
+
 
 
 def requires_maya(func=None, gui=False):
