@@ -7,13 +7,18 @@ class TestGuiBasics(TestCase):
     def test_msgbox(self):
 
         msgbox = QtGui.QMessageBox()
-        msgbox.setText("This will go away in 1 second.")
+        msgbox.setText("This should go away in 1 second.")
         msgbox.show()
         msgbox.raise_()
 
         sleep(1)
 
-        msgbox.close()
+        buttons = qpath(msgbox, '//QPushButton', 0)
+        
+        try:
+            self.assertTrue(buttons)
+        finally:
+            msgbox.close()
 
 
 
