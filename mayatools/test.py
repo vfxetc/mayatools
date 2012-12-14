@@ -13,8 +13,7 @@ else:
     _has_maya = maya_cmds is not None
 
 from uitools import trampoline
-
-from . import threads
+from uitools import threads
 
 
 def requires_maya(func=None, gui=False):
