@@ -1,9 +1,31 @@
 
-- Use a Python thread and socket server to handle our command ports.
-    - Then we can carry it straight to Nuke.
 
 - context.parent
 - context.progress as p
     Wrap progressWindow, or the main progress bar
+
+- CommandPort.call(..., stdio=True, main_thread=True)
+    -> we want to run our nose in a secondary thread that keeps calling
+       out to the main thread but then holding back
+
+    @maya_test
+    def test_only_needs_standalone():
+        pass
+
+    @maya_test(version=2011)
+    
+    @maya_test(gui=True):
+    def test_in_main_gui_thread(self):
+
+        # this is the main thread
+        # if this returns a generator then it is assumed to be a trampoline
+
+        res = yield waitfor(2), functools.partial(qpath, root, 'query')
+
+        # yield will return our results, or throw a TimeoutError
+
+        res = yield waitfor(2)
+
+    raise SkipTest if it isn't in maya
 
 

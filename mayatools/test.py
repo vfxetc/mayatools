@@ -1,9 +1,50 @@
+from __future__ import absolute_import
+
 import os
 import sys
 import optparse
+import functools
+
+try:
+    import maya.cmds as maya_cmds
+    import maya.utils as maya_utils
+except ImportError:
+    _has_maya = False
+else:
+    _has_maya = True
 
 
-def run_remote(working_dir, argv, sys_path=None):
+from uitools import trampoline
+
+
+def requires_maya(func=None, gui=False):
+
+    # Function as a decorator constructor.
+    if not func:
+        return functools.partial(requires_maya, gui=gui)
+
+    # Start it up.
+    if _has_maya and not hasattr(maya_cmds, 'about'):
+        from maya import standalone
+        standalone.initialize()
+
+    if not _has_maya or (gui and maya_cmds.about(batch=True)):
+        @functools.wraps(func)
+        def _skipper(*args, **kwargs):
+            from nose.exc import SkipTest
+            raise SkipTest
+        return _skipper
+
+    # Not in batch mode, so we need to run in the main thread.
+    if not maya_cmds.about(batch=True):
+        trampoliner = trampoline.decorate(maya_utils.executeInMainThreadWithResult)
+        return trampoliner(func)
+
+    # Pass it through.
+    return func
+
+
+def _run_remote(working_dir, argv, sys_path=None):
 
     old_modules = set(sys.modules)
 
@@ -23,11 +64,13 @@ def run_remote(working_dir, argv, sys_path=None):
         # Nope!
     finally:
         os.chdir(old_working_dir)
+        cleaned = 0
         for name in sorted(sys.modules):
             if name in old_modules:
                 continue
-            print '# Cleanup', name
-            del sys.modules[name]
+            cleaned += int(bool(sys.modules.pop(name, None)))
+        if cleaned:
+            print 'Unloaded %d modules.' % cleaned
 
 
 if __name__ == '__main__':
@@ -47,7 +90,7 @@ if __name__ == '__main__':
 
         from remotecontrol.client import open as open_remote
         remote = open_remote(unix_glob='/var/tmp/maya.*.cmdsock')
-        remote('mayatools.test:run_remote', os.getcwd(), sys.argv[1:], [nose_path])
+        remote.call('mayatools.test:_run_remote', (os.getcwd(), args, [nose_path]), main_thread=False)
 
     else:
 
@@ -58,4 +101,4 @@ if __name__ == '__main__':
         path = nose_path + (':' if path else '') + path
         environ['PYTHONPATH'] = path
 
-        os.execvpe(interpreter, [interpreter, '-m', 'nose.core'] + sys.argv[1:], environ)
+        os.execvpe(interpreter, [interpreter, '-m', 'nose.core'] + args, environ)

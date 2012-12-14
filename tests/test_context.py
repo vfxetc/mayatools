@@ -5,6 +5,7 @@ import mayatools.context as ctx
 
 class TestAttrContext(TestCase):
     
+    @requires_maya
     def test_basic_transform(self):
         transform, sphere = cmds.sphere()
         attr = transform + '.translateX'
@@ -13,6 +14,7 @@ class TestAttrContext(TestCase):
             self.assertEqual(cmds.getAttr(attr), 1) 
         self.assertEqual(cmds.getAttr(attr), 0)
         
+    @requires_maya
     def test_mutate_transform(self):
         transform, sphere = cmds.sphere()
         attr = transform + '.translateX'
@@ -24,12 +26,14 @@ class TestAttrContext(TestCase):
 
 class TestEditCommandContext(TestCase):
 
+    @requires_maya
     def test_basic_camera(self):
         transform, cam = cmds.camera(overscan=0)
         with ctx.command(cmds.camera, cam, edit=True, overscan=1):
             self.assertEqual(cmds.camera(cam, q=True, overscan=True), 1)
         self.assertEqual(cmds.camera(cam, q=True, overscan=True), 0)
     
+    @requires_maya
     def test_mutate_camera(self):
         transform, cam = cmds.camera(overscan=0)
         with ctx.command('camera', cam, edit=True, overscan=1) as original:
@@ -40,6 +44,7 @@ class TestEditCommandContext(TestCase):
 
 class TestCommandContext(TestCase):
     
+    @requires_maya
     def test_basic_units(self):
         
         start_time = cmds.currentUnit(q=True, time=True)
@@ -60,6 +65,7 @@ class TestCommandContext(TestCase):
         self.assertEqual(cmds.currentUnit(q=True, linear=True), start_linear)
     
     
+    @requires_maya
     def test_mutate_units(self):
         
         start_time = cmds.currentUnit(q=True, time=True)
@@ -78,6 +84,7 @@ class TestCommandContext(TestCase):
 
 class TestSelectionContext(TestCase):
     
+    @requires_maya
     def test_clear(self):
     
         t, s = cmds.sphere()
@@ -88,6 +95,7 @@ class TestSelectionContext(TestCase):
         
         self.assertEqual(len(cmds.ls(selection=True)), 2)
         
+    @requires_maya
     def test_replace(self):
     
         t1, s1 = cmds.sphere()

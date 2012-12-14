@@ -1,12 +1,17 @@
+from __future__ import absolute_import
+
 from unittest import TestCase as BaseTestCase
 
-import maya.standalone
-from maya import cmds
+from uitools import trampoline
+from mayatools.test import requires_maya
 
 
-if not hasattr(cmds, 'sphere'):
-    maya.standalone.initialize()
-
+try:
+    from maya import cmds
+except ImportError:
+    has_maya = False
+else:
+    has_maya = True
 
 
 class TestCase(BaseTestCase):
