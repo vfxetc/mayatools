@@ -14,7 +14,59 @@ import qbfutures.maya
 from sgfs.ui import product_select
 import sgfs.ui.scene_name.widget as scene_name
 
+import sgpublish.exporter.maya
+import sgpublish.exporter.ui.publish.maya
+import sgpublish.exporter.ui.tabwidget
+import sgpublish.exporter.ui.workarea
+import sgpublish.uiutils
+
 from .utils import export_cache
+
+
+class Exporter(sgpublish.exporter.maya.Exporter):
+
+    def __init__(self):
+        super(Exporter, self).__init__(
+            workspace=cmds.workspace(q=True, fullName=True) or None,
+            filename_hint=cmds.file(q=True, sceneName=True) or 'geocache.mb',
+            publish_type='maya_geocache',
+        )
+
+    def add_path_to_work(self, directory, to_cache):
+        for members, name, frame_from, frame_to, world in to_cache:
+            yield members, os.path.join(directory, name), name, frame_from, frame_to, world
+
+    def export_publish(self, publish, **kwargs):
+        # Set the path to the directory.
+        publish.path = publish.directory
+        kwargs['name'] = '%s - v%04d' % (publish.name, publish.version)
+        self.export(publish.directory, publish.path, **kwargs)
+
+    def export(self, directory, path, to_cache, on_farm, name=None):
+
+        # Add the path.
+        to_cache = self.add_path_to_work(path, to_cache)
+
+        if on_farm:
+
+            executor = qbfutures.maya.Executor(
+                cpus=4,
+                clone_environ=True,
+                create_tempfile=True,
+            )
+            
+            with executor.batch('Geocache Export - %s' % (name or os.path.basename(path))) as batch:
+                for args in to_cache:
+                    members, path, name, frame_from, frame_to, world = args
+                    batch.submit_ext(export_cache, args=args, name=str(name))
+            
+            QtGui.QMessageBox.information(None, "Submitted to Qube", "The geocache export was submitted as job %d" % batch.futures[0].job_id)
+
+        if not on_farm:
+            for args in to_cache:
+                export_cache(*args)
+
+
 
 
 class GroupCheckBox(QtGui.QCheckBox):
@@ -158,11 +210,13 @@ class Dialog(QtGui.QDialog):
         else:
             self._world_radio.setChecked(True)
         
-        box = self._scene_name_box = QtGui.QGroupBox('Export Name')
-        box.setLayout(QtGui.QVBoxLayout())
-        self.layout().addWidget(box)
-    
-        self._scene_name = scene_name.SceneNameWidget({
+
+        self._exporter = Exporter()
+        self._exporter_widget = sgpublish.exporter.ui.tabwidget.Widget()
+        self.layout().addWidget(self._exporter_widget)
+
+        # Work area.
+        tab = sgpublish.exporter.ui.workarea.Widget(self._exporter, {
             'directory': 'data/geo_cache',
             'sub_directory': '',
             'extension': '',
@@ -171,8 +225,18 @@ class Dialog(QtGui.QDialog):
             'warning': self._warning,
             'error': self._warning,
         })
-        box.layout().addWidget(self._scene_name)
-    
+        self._exporter_widget.addTab(tab, "Export to Work Area")
+        
+        # SGPublishes.
+        tab = sgpublish.exporter.ui.publish.maya.Widget(self._exporter)
+        tab.beforeScreenshot.connect(lambda *args: self.hide())
+        tab.afterScreenshot.connect(lambda *args: self.show())
+        self._exporter_widget.addTab(tab, "Publish to Shotgun")
+
+        if 'KS_DEV_ARGS' not in os.environ:
+            self._exporter_widget.tabBar().setEnabled(False)
+            tab.setEnabled(False)
+
         button_layout = QtGui.QHBoxLayout()
         self.layout().addLayout(button_layout)
         
@@ -230,7 +294,6 @@ class Dialog(QtGui.QDialog):
         frame_to = cmds.playbackOptions(q=True, maxTime=True)
         world = self._world_radio.isChecked()
         
-        root = self._scene_name._namer.get_path()
         for group in self._groups.itervalues():
             for set_ in group._children:
                 
@@ -239,30 +302,19 @@ class Dialog(QtGui.QDialog):
         
                 members = cmds.sets(set_._path, q=True)
                 name = set_._cache_name or '__cache__'
-                path = os.path.join(root, name)
                 
-                yield members, path, name, frame_from, frame_to, world
+                yield members, name, frame_from, frame_to, world
         
     def _on_process_button(self):
-        for args in self._iter_to_cache():
-            export_cache(*args)
+        publisher = self._exporter_widget.export(to_cache=list(self._iter_to_cache()), on_farm=False)
+        if publisher:
+            sgpublish.uiutils.announce_publish_success(publisher)
         self.close()
         
     def _on_queue_button(self):
-        
-        executor = qbfutures.maya.Executor(
-            cpus=4,
-            clone_environ=True,
-            create_tempfile=True,
-        )
-        
-        with executor.batch('Geocache Export - %s' % self._scene_name._namer.get_basename()) as batch:
-            for args in self._iter_to_cache():
-                members, path, name, frame_from, frame_to, world = args
-                print 'name', repr(name)
-                batch.submit_ext(export_cache, args=args, name=str(name))
-        
-        QtGui.QMessageBox.information(self, "Submitted to Qube", "The geocache export was submitted as job %d" % batch.futures[0].job_id)
+        publisher = self._exporter_widget.export(to_cache=list(self._iter_to_cache()), on_farm=True)
+        if publisher:
+            sgpublish.uiutils.announce_publish_success(publisher)
         self.close()
 
 
