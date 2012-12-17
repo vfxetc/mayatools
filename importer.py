@@ -455,6 +455,7 @@ class CacheSelector(product_select.Layout):
         if not task_path:
             return
         
+        # Work area.
         for geo_cache_name in ('geocache', 'geo_cache', 'geoCache'):
             path = os.path.join(task_path, 'maya', 'data', geo_cache_name)
             if os.path.exists(path):
@@ -465,6 +466,14 @@ class CacheSelector(product_select.Layout):
                     else:
                         key = (0, 0, name)
                     yield name, os.path.join(path, name), key
+
+        # Published.
+        for path, entity in sgfs.entities_in_directory(task_path, 'PublishEvent', load_tags=True):
+            # Need a `get` because older publishes did not export tags properly.
+            if entity.get('sg_type') != 'maya_geocache':
+                continue
+            yield '%(code)s - v%(sg_version)04d' % entity, path, (entity['sg_version'], sys.maxint, entity['code'])
+
     
     def _iter_objects(self, path):
         
