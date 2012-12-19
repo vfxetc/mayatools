@@ -133,7 +133,12 @@ class CameraExporter(sgpublish.exporter.maya.Exporter):
                 cmds.currentTime(time, edit=True)
 
                 ts.append(
-                    cmds.xform(transform, q=True, worldSpace=True, translation=True)
+                    # We can't just ask for the translation, since it seems to
+                    # take the pivot point into account, and there isn't an
+                    # obvious (to me) relationship bettween the translate and
+                    # pivot info from cmds.xform. Therefor, we extract it from
+                    # the full matrix.
+                    cmds.xform(transform, q=True, worldSpace=True, matrix=True)[-4:-1]
                 )
                 rs.append(
                     cmds.xform(transform, q=True, worldSpace=True, rotation=True)
