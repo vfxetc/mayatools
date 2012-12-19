@@ -5,15 +5,17 @@ import sys
 import optparse
 import functools
 
+from uitools import trampoline
+from uitools import threads
+
 try:
     import maya.cmds as maya_cmds
 except ImportError:
     _has_maya = False
 else:
     _has_maya = maya_cmds is not None
+    _is_batch = threads.call_in_main_thread(maya_cmds.about, batch=True) if _has_maya else True
 
-from uitools import trampoline
-from uitools import threads
 
 
 def requires_maya(func=None, gui=False):
@@ -27,7 +29,7 @@ def requires_maya(func=None, gui=False):
         from maya import standalone
         standalone.initialize()
 
-    if not _has_maya or (gui and maya_cmds.about(batch=True)):
+    if not _has_maya or (gui and _is_batch):
         @functools.wraps(func)
         def _skipper(*args, **kwargs):
             from nose.exc import SkipTest
@@ -35,7 +37,7 @@ def requires_maya(func=None, gui=False):
         return _skipper
 
     # Not in batch mode, so we need to run in the main thread.
-    if not maya_cmds.about(batch=True):
+    if not _is_batch:
         trampoliner = trampoline.decorate(threads.call_in_main_thread)
         return trampoliner(func)
 
@@ -52,6 +54,7 @@ def run(working_dir=None, argv=None, sys_path=None):
         os.chdir(working_dir)
 
     # Extend the path so we can find nose.
+    print sys_path
     if sys_path:
         sys.path.extend(sys_path)
 
@@ -104,7 +107,7 @@ if __name__ == '__main__':
 
         environ = dict(os.environ)
         path = os.environ.get('PYTHONPATH')
-        path = nose_path + (':' if path else '') + path
+        path = ':'.join(sys_path) + (':' if path else '') + path
         environ['PYTHONPATH'] = path
 
         os.execvpe(interpreter, [interpreter, '-m', 'nose.core'] + args, environ)

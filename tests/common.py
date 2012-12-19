@@ -38,7 +38,6 @@ class TestCase(BaseTestCase):
     @requires_maya
     def setUp(self):
         cmds.file(new=True, force=True)
-        bounce()
         
 
 
