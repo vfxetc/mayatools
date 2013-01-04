@@ -268,6 +268,7 @@ todo_include_todos = True
 
 extlinks = {
     'cmds': ('http://download.autodesk.com/global/docs/maya2013/en_us/CommandsPython/%s.html', 'cmds.'),
+    'node': ('http://download.autodesk.com/global/docs/maya2013/en_us/Nodes/%s.html', ''),
 }
 
 intersphinx_mapping = {
