@@ -12,7 +12,7 @@ from sgfs.ui import product_select
 import sgfs.ui.scene_name.widget as scene_name
 
 
-RefEdit = collections.namedtuple('RefEdit', ('command', 'namespaces', 'source'))
+RefEdit = collections.namedtuple('RefEdit', ('command', 'namespaces', 'nodes', 'source'))
 
 
 class RefEditSelector(product_select.Layout):
@@ -74,10 +74,18 @@ class Dialog(QtGui.QDialog):
         self._type_box.setLayout(QtGui.QVBoxLayout())
         self.layout().addWidget(self._type_box)
         
-        self._namespace_box = QtGui.QGroupBox("Namespace Mappings (not implemented)")
-        self._namespace_box.setLayout(QtGui.QVBoxLayout())
-        self.layout().addWidget(self._namespace_box)
+        self._option_box = QtGui.QGroupBox("Options")
+        self._option_box.setLayout(QtGui.QVBoxLayout())
+        self.layout().addWidget(self._option_box)
         
+        self._only_selected_checkbox = QtGui.QCheckBox("Only Apply to Selected Nodes", checked=True)
+        self._only_selected_checkbox.stateChanged.connect(lambda state: self._path_changed(self._path))
+        self._option_box.layout().addWidget(self._only_selected_checkbox)
+
+        self._node_box = QtGui.QGroupBox("Nodes")
+        self._node_box.setLayout(QtGui.QVBoxLayout())
+        self.layout().addWidget(self._node_box)
+
         button = QtGui.QPushButton("Apply Edits")
         button.clicked.connect(self._on_reference)
         self.layout().addWidget(button)
@@ -94,8 +102,10 @@ class Dialog(QtGui.QDialog):
                 continue
             command = line.split()[0]
             namespaces = re.findall(r'(\w+):', line)
+            nodes = re.findall(r'(\|[\|:\w]+)', line)
             self._edits.append(RefEdit(
                 command=command,
+                nodes=set(nodes),
                 namespaces=set(namespaces),
                 source=line,
             ))
@@ -103,18 +113,20 @@ class Dialog(QtGui.QDialog):
         
     def _path_changed(self, path):
         
+        self._path = path
+
         for child in self._type_box.children():
             if isinstance(child, QtGui.QWidget):
                 child.hide()
                 child.destroy()
-        for child in self._namespace_box.children():
+        for child in self._node_box.children():
             if isinstance(child, QtGui.QWidget):
                 child.hide()
                 child.destroy()
             
         if path is None:
             self._type_box.layout().addWidget(QtGui.QLabel("Nothing"))
-            self._namespace_box.layout().addWidget(QtGui.QLabel("Nothing"))
+            self._option_box.layout().addWidget(QtGui.QLabel("Nothing"))
             return
         
         self._parse_file(path)
@@ -126,44 +138,66 @@ class Dialog(QtGui.QDialog):
             self._command_boxes.append(checkbox)
             self._type_box.layout().addWidget(checkbox)
         
-        existing = [cmds.file(ref, q=True, namespace=True) for ref in cmds.file(q=True, reference=True) or []]
-        
-        self._namespace_menus = []
-        namespaces = set()
-        for edit in self._edits:
-            namespaces.update(edit.namespaces)
-        for namespace in sorted(namespaces):
-            layout = QtGui.QHBoxLayout()
-            layout.addWidget(QtGui.QLabel(namespace))
-            combo = QtGui.QComboBox()
-            combo.addItem('<None>')
-            for name in existing:
-                combo.addItem(name)
-                if name == namespace:
-                    combo.setCurrentIndex(combo.count() - 1)
-            layout.addWidget(combo)
-            self._namespace_box.layout().addLayout(layout)
+        self._node_boxes = []
+        all_nodes = set()
+        for e in self._edits:
+            all_nodes.update(e.nodes)
+
+        if self._only_selected_checkbox.isChecked():
+            all_nodes.intersection_update(cmds.ls(selection=True, long=True))
+
+        for node in sorted(all_nodes):
+            checkbox = QtGui.QCheckBox(node, checked=True)
+            self._node_boxes.append(checkbox)
+            self._node_box.layout().addWidget(checkbox)
+
+        # existing = [cmds.file(ref, q=True, namespace=True) for ref in cmds.file(q=True, reference=True) or []]
+        # self._namespace_menus = []
+        # namespaces = set()
+        # for edit in self._edits:
+        #     namespaces.update(edit.namespaces)
+        # for namespace in sorted(namespaces):
+        #     layout = QtGui.QHBoxLayout()
+        #     layout.addWidget(QtGui.QLabel(namespace))
+        #     combo = QtGui.QComboBox()
+        #     combo.addItem('<None>')
+        #     for name in existing:
+        #         combo.addItem(name)
+        #         if name == namespace:
+        #             combo.setCurrentIndex(combo.count() - 1)
+        #     layout.addWidget(combo)
+        #     self._option_box.layout().addLayout(layout)
     
     def _on_reference(self, *args):
         
         do_command = {}
         for checkbox in self._command_boxes:
             do_command[str(checkbox.text())] = checkbox.isChecked()
+        do_node = {}
+        for checkbox in self._node_boxes:
+            do_node[str(checkbox.text())] = checkbox.isChecked()
         
-        
+        applied = 0
         failed = 0
         for edit in self._edits:
-            if do_command.get(edit.command):
-                try:
-                    mel.eval(edit.source)
-                except Exception as e:
-                    cmds.warning(str(e))
-                    failed += 1
+            
+            if not do_command.get(edit.command):
+                continue
+            if not all(do_node.get(n) for n in edit.nodes):
+                continue
+
+            try:
+                mel.eval(edit.source)
+            except Exception as e:
+                cmds.warning(str(e))
+                failed += 1
+            else:
+                applied += 1
         
         (QtGui.QMessageBox.warning if failed else QtGui.QMessageBox.information)(
             self,
             "Applied Reference Edits",
-            "Applied %d edits with %d failures." % (len(self._edits) - failed, failed)
+            "Applied %d edits with %d failures." % (applied, failed)
         )
         
         self.close()
