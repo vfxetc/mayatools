@@ -174,8 +174,6 @@ class Dialog(QtGui.QDialog):
             for node in cmds.ls(selection=True, long=True) or ():
                 node_filter.update(cmds.listRelatives(node, allDescendents=True, fullPath=True) or ())
 
-        print '\n'.join(sorted(node_filter))
-
         if node_filter is not None:
             all_nodes.intersection_update(node_filter)
 
@@ -230,7 +228,7 @@ class Dialog(QtGui.QDialog):
         (QtGui.QMessageBox.warning if failed else QtGui.QMessageBox.information)(
             self,
             "Applied Reference Edits",
-            "Applied %d edits with %d failures." % (applied, failed)
+            "Applied %d of %d edits with %d failures." % (applied, len(self._edits), failed)
         )
         
         self.close()
