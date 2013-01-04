@@ -79,8 +79,16 @@ class Dialog(QtGui.QDialog):
         self.layout().addWidget(self._option_box)
         
         self._only_selected_checkbox = QtGui.QCheckBox("Only Apply to Selected Nodes", checked=True)
-        self._only_selected_checkbox.stateChanged.connect(lambda state: self._path_changed(self._path))
+        self._only_selected_checkbox.stateChanged.connect(self._node_filters_changed)
         self._option_box.layout().addWidget(self._only_selected_checkbox)
+
+        self._on_selection_parents_checkbox = QtGui.QCheckBox("...or Parents of Selected Nodes", checked=True)
+        self._on_selection_parents_checkbox.stateChanged.connect(self._node_filters_changed)
+        self._option_box.layout().addWidget(self._on_selection_parents_checkbox)
+
+        self._on_selection_children_checkbox = QtGui.QCheckBox("...or Children of Selected Nodes", checked=True)
+        self._on_selection_children_checkbox.stateChanged.connect(self._node_filters_changed)
+        self._option_box.layout().addWidget(self._on_selection_children_checkbox)
 
         self._node_box = QtGui.QGroupBox("Nodes")
         self._node_box.setLayout(QtGui.QVBoxLayout())
@@ -110,7 +118,9 @@ class Dialog(QtGui.QDialog):
                 source=line,
             ))
             
-        
+    def _node_filters_changed(self, *args):
+        self._path_changed(self._path)
+
     def _path_changed(self, path):
         
         self._path = path
@@ -143,8 +153,31 @@ class Dialog(QtGui.QDialog):
         for e in self._edits:
             all_nodes.update(e.nodes)
 
+        node_filter = None
         if self._only_selected_checkbox.isChecked():
-            all_nodes.intersection_update(cmds.ls(selection=True, long=True))
+            node_filter = set(cmds.ls(selection=True, long=True) or ())
+
+        if self._on_selection_parents_checkbox.isChecked():
+            node_filter = node_filter or set()
+            visited = set()
+            to_visit = set(cmds.ls(selection=True, long=True) or ())
+            while to_visit:
+                node = to_visit.pop()
+                node_filter.add(node)
+                if node in visited:
+                    continue
+                visited.add(node)
+                to_visit.update(cmds.listRelatives(node, allParents=True, fullPath=True) or ())
+
+        if self._on_selection_children_checkbox.isChecked():
+            node_filter = node_filter or set()
+            for node in cmds.ls(selection=True, long=True) or ():
+                node_filter.update(cmds.listRelatives(node, allDescendents=True, fullPath=True) or ())
+
+        print '\n'.join(sorted(node_filter))
+
+        if node_filter is not None:
+            all_nodes.intersection_update(node_filter)
 
         for node in sorted(all_nodes):
             checkbox = QtGui.QCheckBox(node, checked=True)
