@@ -139,6 +139,7 @@ class SetPicker(QtGui.QGroupBox):
         tree.setHeaderLabels(['Sets in Scene', '', 'Export Name'])
         self.layout().addWidget(tree)
         tree.viewport().setBackgroundRole(QtGui.QPalette.Window)
+        tree.setSelectionMode(tree.NoSelection)
 
         self._option_toggle = CollapseToggle("Options")
         self.layout().addWidget(self._option_toggle)
@@ -208,6 +209,7 @@ class SetPicker(QtGui.QGroupBox):
         tree.resizeColumnToContents(0)
         tree.setColumnWidth(0, tree.columnWidth(0) + 10)
         tree.setColumnWidth(1, 16)
+        tree.resizeColumnToContents(2)
     
     def _iter_nodes(self):
         
