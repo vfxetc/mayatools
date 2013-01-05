@@ -207,10 +207,6 @@ class Dialog(QtGui.QDialog):
         tab.afterScreenshot.connect(lambda *args: self.show())
         self._exporter_widget.addTab(tab, "Publish to Shotgun")
 
-        if 'KS_DEV_ARGS' not in os.environ:
-            self._exporter_widget.tabBar().setEnabled(False)
-            tab.setEnabled(False)
-
         button_layout = QtGui.QHBoxLayout()
         self.layout().addLayout(button_layout)
         
