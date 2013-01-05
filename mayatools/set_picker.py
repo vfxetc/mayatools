@@ -11,6 +11,36 @@ from maya import cmds, mel
 
 
 
+class CollapseToggle(QtGui.QCheckBox):
+
+    def __init__(self, *args, **kwargs):
+        super(CollapseToggle, self).__init__(*args, **kwargs)
+
+    def paintEvent(self, e):
+
+        paint = QtGui.QStylePainter(self)
+        option = QtGui.QStyleOptionButton()
+        self.initStyleOption(option)
+
+        paint.drawControl(QtGui.QStyle.CE_CheckBox, option)
+
+        # Re-use the style option, it contains enough info to make sure the
+        # button is correctly checked
+        option.rect = self.style().subElementRect(QtGui.QStyle.SE_CheckBoxIndicator, option, self)
+
+        # Erase the checkbox...
+        paint.save();
+        px = QtGui.QPixmap(option.rect.width(), option.rect.height())
+        px.fill(self, option.rect.left(), option.rect.top())
+        brush = QtGui.QBrush(px)
+        paint.fillRect(option.rect, brush)
+        paint.restore()
+
+        # and replace it with an arrow button
+        # option.rect.adjust(3, 0, 0, 0)
+        paint.drawPrimitive(QtGui.QStyle.PE_IndicatorArrowDown if self.isChecked() else QtGui.QStyle.PE_IndicatorArrowRight, option)
+
+
 class GroupCheckBox(QtGui.QCheckBox):
     
     def __init__(self, group):
@@ -103,9 +133,27 @@ class SetPicker(QtGui.QGroupBox):
 
         self.setLayout(QtGui.QVBoxLayout())
         
-        pattern_layout = QtGui.QHBoxLayout(spacing=4)
-        self.layout().addLayout(pattern_layout)
+        tree = self._sets_tree = QtGui.QTreeWidget()
+        tree.setFrameShape(QtGui.QFrame.NoFrame)
+        tree.setColumnCount(3)
+        tree.setHeaderLabels(['Sets in Scene', '', 'Export Name'])
+        self.layout().addWidget(tree)
+        tree.viewport().setBackgroundRole(QtGui.QPalette.Window)
 
+        self._option_toggle = CollapseToggle("Options")
+        self.layout().addWidget(self._option_toggle)
+        self._options_container = QtGui.QFrame(visible=False)
+        self.layout().addWidget(self._options_container)
+        self._options_container.setContentsMargins(0, 0, 0, 0)
+        self._option_toggle.stateChanged.connect(lambda state: self._options_container.setVisible(state))
+
+        self._options_container.setLayout(QtGui.QVBoxLayout())
+        self._options_container.layout().setContentsMargins(0, 0, 0, 0)
+
+        pattern_layout = QtGui.QHBoxLayout(spacing=4)
+        self._options_container.layout().addLayout(pattern_layout)
+
+        pattern_layout.addWidget(QtGui.QLabel("Include Pattern:"))
         self._pattern_field = field = QtGui.QLineEdit('__locators__*')
         field.returnPressed.connect(self._reload)
         pattern_layout.addWidget(field)
@@ -115,13 +163,6 @@ class SetPicker(QtGui.QGroupBox):
         button.setFixedHeight(field.sizeHint().height())
         button.setFixedWidth(button.sizeHint().width())
         pattern_layout.addWidget(button)
-        
-        tree = self._sets_tree = QtGui.QTreeWidget()
-        tree.setFrameShape(QtGui.QFrame.NoFrame)
-        tree.setColumnCount(3)
-        tree.setHeaderLabels(['Sets in Scene', '', 'Export Name'])
-        self.layout().addWidget(tree)
-        tree.viewport().setBackgroundRole(QtGui.QPalette.Window)
         
         self._reload()
     
@@ -146,9 +187,17 @@ class SetPicker(QtGui.QGroupBox):
             child = SetItem(name, set_)
             group._add_child(child)
         
+
         tree = self._sets_tree
         tree.clear()
         
+        if not self._groups:
+            item = QtGui.QTreeWidgetItem(["No sets match pattern!"])
+            tree.addTopLevelItem(item)
+            spacer = QtGui.QLabel('')
+            spacer.setFixedHeight(22)
+            tree.setItemWidget(item, 0, spacer)
+
         for reference, group in sorted(self._groups.iteritems(), key=lambda x: (x[0] is not None, x[0])):
             tree.addTopLevelItem(group)
             tree.expandItem(group)
