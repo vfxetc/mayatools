@@ -3,42 +3,14 @@ from __future__ import absolute_import
 import os
 import re
 
+
+from uitools.qt import *
+from uitools.checkbox import CollapseToggle
+
 from PyQt4 import QtCore, QtGui
 Qt = QtCore.Qt
 
 from maya import cmds, mel
-
-
-
-
-class CollapseToggle(QtGui.QCheckBox):
-
-    def __init__(self, *args, **kwargs):
-        super(CollapseToggle, self).__init__(*args, **kwargs)
-
-    def paintEvent(self, e):
-
-        paint = QtGui.QStylePainter(self)
-        option = QtGui.QStyleOptionButton()
-        self.initStyleOption(option)
-
-        paint.drawControl(QtGui.QStyle.CE_CheckBox, option)
-
-        # Re-use the style option, it contains enough info to make sure the
-        # button is correctly checked
-        option.rect = self.style().subElementRect(QtGui.QStyle.SE_CheckBoxIndicator, option, self)
-
-        # Erase the checkbox...
-        paint.save();
-        px = QtGui.QPixmap(option.rect.width(), option.rect.height())
-        px.fill(self, option.rect.left(), option.rect.top())
-        brush = QtGui.QBrush(px)
-        paint.fillRect(option.rect, brush)
-        paint.restore()
-
-        # and replace it with an arrow button
-        # option.rect.adjust(3, 0, 0, 0)
-        paint.drawPrimitive(QtGui.QStyle.PE_IndicatorArrowDown if self.isChecked() else QtGui.QStyle.PE_IndicatorArrowRight, option)
 
 
 class GroupCheckBox(QtGui.QCheckBox):
@@ -51,7 +23,7 @@ class GroupCheckBox(QtGui.QCheckBox):
         super(GroupCheckBox, self).nextCheckState()
         state = self.checkState()
         for child in self._group._children:
-            child._enabled_checkbox.setChecked(state)
+            child._enabledCheckbox.setChecked(state)
 
 
 class GroupItem(QtGui.QTreeWidgetItem):
@@ -60,33 +32,35 @@ class GroupItem(QtGui.QTreeWidgetItem):
         super(GroupItem, self).__init__([name or '<local>'])
         self._name = name
         self._children = []
-        self._setup_ui()
+        self._setupGui()
     
-    def _add_child(self, item):
+    def _addChild(self, item):
         self._children.append(item)
         self.addChild(item)
     
-    def _setup_ui(self):
-        self._enabled_checkbox = GroupCheckBox(self)
+    def _setupGui(self):
+        self._enabledCheckbox = GroupCheckBox(self)
 
-    def _setup_tree(self):
+    def _setupTree(self):
         label = QtGui.QLabel('')
         label.setFixedHeight(22)
         self.treeWidget().setItemWidget(self, 0, label)
-        self.treeWidget().setItemWidget(self, 1, self._enabled_checkbox)
-        self._child_updated()
+        self.treeWidget().setItemWidget(self, 1, self._enabledCheckbox)
+        self._childUpdated()
     
-    def _child_updated(self):
-        new_state = any(x._enabled_checkbox.isChecked() for x in self._children)
-        self._enabled_checkbox.setChecked(new_state)
+    def _childUpdated(self):
+        new_state = any(x._enabledCheckbox.isChecked() for x in self._children)
+        self._enabledCheckbox.setChecked(new_state)
     
     
 class SetItem(QtGui.QTreeWidgetItem):
     
-    def __init__(self, name, path):
+    def __init__(self, name, path, namesEnabled):
         super(SetItem, self).__init__([name])
+
         self._name = name
-        
+        self._namesEnabled = namesEnabled
+
         name_parts = path.split(':')
         name_parts[-1] = name_parts[-1].replace('locators', '_')
         name_parts = [re.sub(r'[\W_]+', '_', x).strip('_') for x in name_parts]
@@ -94,46 +68,68 @@ class SetItem(QtGui.QTreeWidgetItem):
         self._export_name = '_'.join(name_parts).strip('_')
         
         self._path = path
-        self._setup_ui()
+        self._setupGui()
     
-    def _setup_ui(self):
+    def _setupGui(self):
 
-        self._enabled_checkbox = QtGui.QCheckBox(checked=True)
-        self._enabled_checkbox.stateChanged.connect(self._on_enabled_change)
+        self._enabledCheckbox = QtGui.QCheckBox(checked=True)
+        self._enabledCheckbox.stateChanged.connect(self._onEnabledChanged)
 
-        self._name_field = QtGui.QLineEdit(self._export_name)
-        self._name_field.textChanged.connect(self._on_name_change)
+        self._nameField = QtGui.QLineEdit(self._export_name)
+        self._nameField.textChanged.connect(self._onNameChanged)
 
-        self._on_enabled_change()
+        self._onEnabledChanged()
     
-    def _setup_tree(self):
+    def _setupTree(self):
         label = QtGui.QLabel('')
         label.setFixedHeight(22)
         self.treeWidget().setItemWidget(self, 0, label)
-        self.treeWidget().setItemWidget(self, 1, self._enabled_checkbox)
-        self.treeWidget().setItemWidget(self, 2, self._name_field)
+        self.treeWidget().setItemWidget(self, 1, self._enabledCheckbox)
+        self.treeWidget().setItemWidget(self, 2, self._nameField)
     
-    def _on_enabled_change(self, state=None):
-        self._name_field.setEnabled(state if state is not None else self._enabled_checkbox.isChecked())
+    def _onEnabledChanged(self, state=None):
+
+        if self._namesEnabled:
+            self._nameField.setEnabled(state if state is not None else self._enabledCheckbox.isChecked())
+        else:
+            self._nameField.setEnabled(False)
+
         parent = self.parent()
         if parent:
-            parent._child_updated()
+            parent._childUpdated()
     
-    def _on_name_change(self, value):
+    def _onNameChanged(self, value):
         self._export_name = str(value)
         
 
 class SetPicker(QtGui.QGroupBox):
 
     def __init__(self, *args, **kwargs):
+
+        self._pattern = str(kwargs.pop('pattern', '*'))
+        self._namesEnabled = bool(kwargs.pop('namesEnabled', False))
+        self._gui_is_setup = False
+
         super(SetPicker, self).__init__(*args, **kwargs)
-        self._init_ui()
-            
-    def _init_ui(self):
+
+        self._setupGui()
+        self._gui_is_setup = True
+    
+    def setPattern(self, v):
+        self._pattern = str(v)
+        if self._gui_is_setup:
+            self._pattern_field.setText(self._pattern)
+
+    def setNamesEnabled(self, v):
+        self._namesEnabled = bool(v)
+        if self._gui_is_setup:
+            self._reload()
+
+    def _setupGui(self):
 
         self.setLayout(QtGui.QVBoxLayout())
         
-        tree = self._sets_tree = QtGui.QTreeWidget()
+        tree = self._tree = QtGui.QTreeWidget()
         tree.setFrameShape(QtGui.QFrame.NoFrame)
         tree.setColumnCount(3)
         tree.setHeaderLabels(['Sets in Scene', '', 'Export Name'])
@@ -155,7 +151,7 @@ class SetPicker(QtGui.QGroupBox):
         self._options_container.layout().addLayout(pattern_layout)
 
         pattern_layout.addWidget(QtGui.QLabel("Include Pattern:"))
-        self._pattern_field = field = QtGui.QLineEdit('__locators__*')
+        self._pattern_field = field = QtGui.QLineEdit(self._pattern)
         field.returnPressed.connect(self._reload)
         pattern_layout.addWidget(field)
 
@@ -185,11 +181,10 @@ class SetPicker(QtGui.QGroupBox):
             if group is None:
                 group = GroupItem(reference)
                 self._groups[reference] = group
-            child = SetItem(name, set_)
-            group._add_child(child)
+            child = SetItem(name, set_, self._namesEnabled)
+            group._addChild(child)
         
-
-        tree = self._sets_tree
+        tree = self._tree
         tree.clear()
         
         if not self._groups:
@@ -203,26 +198,33 @@ class SetPicker(QtGui.QGroupBox):
             tree.addTopLevelItem(group)
             tree.expandItem(group)
             for child in group._children:
-                child._setup_tree()
-            group._setup_tree()
+                child._setupTree()
+            group._setupTree()
         
         tree.resizeColumnToContents(0)
         tree.setColumnWidth(0, tree.columnWidth(0) + 10)
         tree.setColumnWidth(1, 16)
         tree.resizeColumnToContents(2)
     
-    def _iter_nodes(self):
-        
+    def iterSelectedGroups(self):
+        """Return an iterator of (export_name, maya_nodes) pairs."""
+
         for group in self._groups.itervalues():
             for set_ in group._children:
                 
-                if not set_._enabled_checkbox.isChecked():
+                if not set_._enabledCheckbox.isChecked():
                     continue
         
                 members = cmds.sets(set_._path, q=True)
-                name = set_._export_name or '__locators__'
+                name = set_._export_name
                 
                 yield name, members
+
+    def allSelectedNodes(self):
+        nodes = set()
+        for _, group_nodes in self.iterSelectedGroups():
+            nodes.update(group_nodes)
+        return list(nodes)
 
 
 
@@ -232,7 +234,7 @@ def __before_reload__():
 
 dialog = None
 
-def run():
+def run(*args, **kwargs):
     
     global dialog
     
@@ -241,6 +243,6 @@ def run():
     
     dialog = QtGui.QDialog()
     dialog.setLayout(QtGui.QVBoxLayout())
-    dialog.layout().addWidget(SetPicker('Sets to Test'))
+    dialog.layout().addWidget(SetPicker(*args, **kwargs))
 
     dialog.show()
