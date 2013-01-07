@@ -57,3 +57,22 @@ def bake_global_locators(nodes, time_range=None):
     return locators
 
 
+def iter_nuke_script(locator, time_range=None):
+
+    if time_range is None:
+        time_range = (cmds.playbackOptions(q=True, minTime=True), cmds.playbackOptions(q=True, maxTime=True))
+    min_time, max_time = time_range
+
+    yield 'Axis2 {\n'
+    yield '\tname %s\n' % re.sub(r'\W+', '_', locator).strip('_')
+    for name, key in (('translate', 't'), ('rotate', 'r'), ('scaling', 's')):
+        yield '\t%s {\n' % name
+        for axis in 'xyz':
+            yield '\t\t{curve x%d' % min_time
+            for time in xrange(min_time, max_time + 1):
+                yield ' %f' % cmds.getAttr('%s.%s%s' % (locator, key, axis), time=time)
+            yield '}\n'
+        yield '\t}\n'
+    yield '}\n'
+
+

@@ -19,7 +19,7 @@ import sgpublish.exporter.ui.tabwidget
 import sgpublish.exporter.ui.workarea
 import sgpublish.uiutils
 
-from .locators import bake_global_locators
+from .locators import bake_global_locators, iter_nuke_script
 from . import context
 from .set_picker import SetPicker
 from .tickets import ticket_ui_context
@@ -47,6 +47,7 @@ class Exporter(sgpublish.exporter.maya.Exporter):
         locators = bake_global_locators(nodes)
 
         try:
+
             with context.selection():
                 cmds.select(locators, replace=True)
 
@@ -60,6 +61,11 @@ class Exporter(sgpublish.exporter.maya.Exporter):
 
                 else:
                     cmds.file(path, exportSelected=True, type='mayaAscii')
+
+            # Nuke export.
+            with open(os.path.splitext(path)[0] + '.nk', 'wb') as nuke_fh:
+                for locator in locators:
+                    nuke_fh.write(''.join(iter_nuke_script(locator)))
 
         finally:
             cmds.delete(*locators)
