@@ -48,7 +48,7 @@ def bake_global_locators(nodes, time_range=None):
     
     with context.suspend_refresh():
         cmds.bakeResults(*locators, **dict(
-            simulation=False,
+            simulation=True,
             time=time_range,
         ))
 
