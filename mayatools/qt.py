@@ -1,6 +1,6 @@
 import sip
 
-from uitools import QtCore
+from uitools.qt import QtCore
 
 import maya.OpenMayaUI as apiUI
 
