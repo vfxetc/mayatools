@@ -2,10 +2,7 @@ from __future__ import absolute_import
 
 import os
 import re
-import sys
-import time
 import copy
-import traceback
 
 import yaml
 
@@ -162,7 +159,6 @@ def convert_entrypoints(button):
 
     # Convert entrypoints into `dispatch` calls.
     if 'entrypoint' in button:
-        kwargs = {}
         arg_specs = [repr(button.pop('entrypoint'))]
         for attr in 'args', 'kwargs', 'reload':
             if attr in button:

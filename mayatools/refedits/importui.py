@@ -1,15 +1,12 @@
 import os
 import re
 import collections
-import traceback
 
-from PyQt4 import QtCore, QtGui
-Qt = QtCore.Qt
+from uitools.qt import QtGui
 
 from maya import cmds, mel
 
 from sgfs.ui import product_select
-import sgfs.ui.scene_name.widget as scene_name
 
 
 RefEdit = collections.namedtuple('RefEdit', ('command', 'namespaces', 'nodes', 'source'))

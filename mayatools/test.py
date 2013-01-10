@@ -54,7 +54,6 @@ def run(working_dir=None, argv=None, sys_path=None):
         os.chdir(working_dir)
 
     # Extend the path so we can find nose.
-    print sys_path
     if sys_path:
         sys.path.extend(sys_path)
 

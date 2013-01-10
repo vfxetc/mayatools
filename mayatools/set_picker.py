@@ -1,16 +1,11 @@
 from __future__ import absolute_import
 
-import os
 import re
 
-
-from uitools.qt import *
+from uitools.qt import QtGui
 from uitools.checkbox import CollapseToggle
 
-from PyQt4 import QtCore, QtGui
-Qt = QtCore.Qt
-
-from maya import cmds, mel
+from maya import cmds
 
 
 class GroupCheckBox(QtGui.QCheckBox):

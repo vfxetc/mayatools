@@ -1,11 +1,7 @@
 import sip
 
-# This should happen before Qt is imported the first time... Hopefully this
-# still works.
-# sip.setapi('QString', 2)
-# sip.setapi('QVariant', 2)
+from uitools import QtCore
 
-from PyQt4 import QtGui, QtCore
 import maya.OpenMayaUI as apiUI
 
 

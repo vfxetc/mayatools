@@ -2,25 +2,17 @@ from __future__ import absolute_import
 
 import functools
 import os
-import platform
-import subprocess
-import sys
-import tempfile
-import time
 import traceback
-
-from PyQt4 import QtCore, QtGui
-Qt = QtCore.Qt
 
 from maya import cmds, mel
 import maya.utils
 
 import sgactions.ticketui
-import shotgun_api3_registry
 
 
 _registered = False
 def register_hook():
+    global _registered
     _registered = True
     maya.utils._guiExceptHook = _exception_hook
 
@@ -34,7 +26,7 @@ def _exception_hook(exc_type, exc_value, exc_traceback, detail=2):
     try:
         return maya.utils.formatGuiException(exc_type, exc_value, exc_traceback, detail)
     except:
-        return '# '.join(traceback.format_exception(tb_type, exc_object, tb)).rstrip()
+        return '# '.join(traceback.format_exception(exc_type, exc_value, exc_traceback)).rstrip()
 
 
 class Dialog(sgactions.ticketui.Dialog):

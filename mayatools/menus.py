@@ -1,7 +1,7 @@
 import functools
 import os
 
-from PyQt4 import QtGui
+from uitools.qt import QtGui
 
 from maya import cmds
 

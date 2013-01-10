@@ -1,11 +1,8 @@
 import os
-import re
-import glob
 import collections
 import datetime
 
-from PyQt4 import QtCore, QtGui
-Qt = QtCore.Qt
+from uitools.qt import Qt, QtCore, QtGui
 
 
 PlayblastInfo = collections.namedtuple('PlayblastInfo', (

@@ -1,14 +1,10 @@
 from __future__ import absolute_import
 
 import os
-import re
 
-from PyQt4 import QtCore, QtGui
-Qt = QtCore.Qt
+from uitools.qt import QtGui
 
-from maya import cmds, mel
-
-import sgfs.ui.scene_name.widget as scene_name
+from maya import cmds
 
 import sgpublish.exporter.maya
 import sgpublish.exporter.ui.publish.maya

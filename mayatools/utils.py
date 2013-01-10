@@ -15,7 +15,7 @@ def resolve_entrypoint(entrypoint, reload=None):
     # on many of the older tools.
     try:
         module = __import__(module_name, fromlist=['.'])
-    except ImportError:
+    except ImportError as ie:
         parts = module_name.rsplit('.', 1)
         if len(parts) == 1:
             raise ie
