@@ -1,4 +1,4 @@
-import autoreload
+import metatools.imports
 
 
 def resolve_entrypoint(entrypoint, reload=None):
@@ -31,7 +31,7 @@ def resolve_entrypoint(entrypoint, reload=None):
     # Reload if requested. `reload is None` is automatic. `reload is True`
     # will always reload the direct module.
     if reload or reload is None:
-        autoreload.autoreload(module, force_self=bool(reload))
+        metatools.imports.autoreload(module, force_self=bool(reload))
         
     # Grab the function.
     try:
