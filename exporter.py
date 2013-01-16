@@ -81,7 +81,12 @@ class CameraExporter(sgpublish.exporter.maya.Exporter):
         else:
             original_selection = None
         
-        cmds.file(export_path, type='mayaAscii', exportSelected=True)
+        # The `constructionHistory` here is only to avoid a bug that crashes
+        # Maya 2013. I have no idea why it does that, but it does. It only
+        # seems to happen on the second runthrough of this tool, with no
+        # changes inbettween (using the mayatools.debug.enable_verbose_commands
+        # reveals an identical code path). Hopefully, this fixes it...
+        cmds.file(export_path, type='mayaAscii', exportSelected=True, constructionHistory=False)
         
         # Rewrite the file to work with 2011.
         if maya_version > 2011:
