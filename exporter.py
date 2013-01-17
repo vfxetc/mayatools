@@ -307,10 +307,6 @@ class Dialog(QtGui.QDialog):
         cmds.confirmDialog(title='Scene Name Error', message=message, icon='critical')
         cmds.error(message)
 
-    def closeEvent(self, e):
-        super(Dialog, self).closeEvent(e)
-        self._config.save()
-
 
 def __before_reload__():
     if dialog:
