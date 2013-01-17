@@ -10,7 +10,6 @@ Qt = QtCore.Qt
 from maya import cmds, mel
 
 import mayatools.context
-import metatools.config
 import sgfs.ui.scene_name.widget as scene_name
 import sgpublish.exporter.maya
 import sgpublish.exporter.ui.publish.maya
@@ -191,7 +190,6 @@ class Dialog(QtGui.QDialog):
     
     def __init__(self):
         super(Dialog, self).__init__()
-        self._config = metatools.config.Config('westernx/' + __name__)
         self._setup_ui()
     
     def _setup_ui(self):
@@ -225,6 +223,12 @@ class Dialog(QtGui.QDialog):
         self._exporter_widget = sgpublish.exporter.ui.tabwidget.Widget()
         self.layout().addWidget(self._exporter_widget)
         
+        # SGPublishes.
+        tab = sgpublish.exporter.ui.publish.maya.Widget(self._exporter)
+        tab.beforeScreenshot.connect(lambda *args: self.hide())
+        tab.afterScreenshot.connect(lambda *args: self.show())
+        self._exporter_widget.addTab(tab, "Publish to Shotgun")
+
         # Work area.
         tab = sgpublish.exporter.ui.workarea.Widget(self._exporter, {
             'directory': 'scenes/camera',
@@ -235,16 +239,6 @@ class Dialog(QtGui.QDialog):
         })
         self._exporter_widget.addTab(tab, "Export to Work Area")
         
-        # SGPublishes.
-        tab = sgpublish.exporter.ui.publish.maya.Widget(self._exporter)
-        tab.beforeScreenshot.connect(lambda *args: self.hide())
-        tab.afterScreenshot.connect(lambda *args: self.show())
-        self._exporter_widget.addTab(tab, "Publish to Shotgun")
-        
-        # Hook up the user-config.
-        self._exporter_widget.setCurrentIndex(self._config.get('currentTabIndex', 1))
-        self._exporter_widget.currentChanged.connect(functools.partial(self._config.__setitem__, 'currentTabIndex'))
-
         button_row = QtGui.QHBoxLayout()
         button_row.addStretch()
         self.layout().addLayout(button_row)
