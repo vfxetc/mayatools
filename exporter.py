@@ -2,16 +2,16 @@ from __future__ import absolute_import
 
 import os
 import re
+import functools
 
 from PyQt4 import QtCore, QtGui
 Qt = QtCore.Qt
 
 from maya import cmds, mel
 
-import sgfs.ui.scene_name.widget as scene_name
-
 import mayatools.context
-
+import metatools.config
+import sgfs.ui.scene_name.widget as scene_name
 import sgpublish.exporter.maya
 import sgpublish.exporter.ui.publish.maya
 import sgpublish.exporter.ui.tabwidget
@@ -191,6 +191,7 @@ class Dialog(QtGui.QDialog):
     
     def __init__(self):
         super(Dialog, self).__init__()
+        self._config = metatools.config.Config('westernx/' + __name__)
         self._setup_ui()
     
     def _setup_ui(self):
@@ -240,8 +241,10 @@ class Dialog(QtGui.QDialog):
         tab.afterScreenshot.connect(lambda *args: self.show())
         self._exporter_widget.addTab(tab, "Publish to Shotgun")
         
-        self._exporter_widget.setCurrentIndex(1)
-        
+        # Hook up the user-config.
+        self._exporter_widget.setCurrentIndex(self._config.get('currentTabIndex', 1))
+        self._exporter_widget.currentChanged.connect(functools.partial(self._config.__setitem__, 'currentTabIndex'))
+
         button_row = QtGui.QHBoxLayout()
         button_row.addStretch()
         self.layout().addLayout(button_row)
@@ -309,6 +312,10 @@ class Dialog(QtGui.QDialog):
     def _error(self, message):
         cmds.confirmDialog(title='Scene Name Error', message=message, icon='critical')
         cmds.error(message)
+
+    def closeEvent(self, e):
+        super(Dialog, self).closeEvent(e)
+        self._config.save()
 
 
 def __before_reload__():
