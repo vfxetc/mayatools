@@ -240,6 +240,8 @@ class Dialog(QtGui.QDialog):
         tab.afterScreenshot.connect(lambda *args: self.show())
         self._exporter_widget.addTab(tab, "Publish to Shotgun")
         
+        self._exporter_widget.setCurrentIndex(1)
+        
         button_row = QtGui.QHBoxLayout()
         button_row.addStretch()
         self.layout().addLayout(button_row)
