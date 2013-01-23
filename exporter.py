@@ -331,5 +331,24 @@ def run():
     if dialog:
         dialog.close()
     
+    # Be cautious if the scene was never saved
+    filename = cmds.file(query=True, sceneName=True)
+    if not filename:
+        res = QtGui.QMessageBox.warning(None, 'Unsaved Scene', 'This scene has not beed saved. Continue anyways?',
+            QtGui.QMessageBox.Yes | QtGui.QMessageBox.No,
+            QtGui.QMessageBox.No
+        )
+        if res & QtGui.QMessageBox.No:
+            return
+    
+    workspace = cmds.workspace(q=True, rootDirectory=True)
+    if filename and not filename.startswith(workspace):
+        res = QtGui.QMessageBox.warning(None, 'Mismatched Workspace', 'This scene is not from the current workspace. Continue anyways?',
+            QtGui.QMessageBox.Yes | QtGui.QMessageBox.No,
+            QtGui.QMessageBox.No
+        )
+        if res & QtGui.QMessageBox.No:
+            return
+
     dialog = Dialog()    
     dialog.show()
