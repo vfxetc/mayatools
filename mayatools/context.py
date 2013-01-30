@@ -251,7 +251,7 @@ class progress(object):
 
         # Allow the main thread to process events for just a little bit so that
         # it may catch the escape key.
-        QtGui.QApplication.instance().processEvents(QtCore.QEventLoop.AllEvents, max_time)
+        QtGui.QApplication.instance().processEvents(QtCore.QEventLoop.ExcludeSocketNotifiers, max_time)
 
         self._was_cancelled = cmds.progressBar(self._bar, query=True, isCancelled=True)
         return self._was_cancelled
