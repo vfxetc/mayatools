@@ -1,8 +1,7 @@
 import os
 import re
 
-from PyQt4 import QtCore, QtGui
-Qt = QtCore.Qt
+from uitools.qt import QtCore, QtGui, Qt
 
 from maya import cmds, mel
 

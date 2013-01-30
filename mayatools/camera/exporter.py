@@ -4,12 +4,10 @@ import os
 import re
 import functools
 
-from PyQt4 import QtCore, QtGui
-Qt = QtCore.Qt
+from uitools.qt import QtCore, QtGui, Qt
 
 from maya import cmds, mel
 
-import mayatools.context
 import sgfs.ui.scene_name.widget as scene_name
 import sgpublish.exporter.maya
 import sgpublish.exporter.ui.publish.maya
@@ -17,7 +15,8 @@ import sgpublish.exporter.ui.tabwidget
 import sgpublish.exporter.ui.workarea
 import sgpublish.uiutils
 
-import ks.maya.downgrade as downgrade
+import mayatools.context
+from mayatools import downgrade
 
 
 # Default Nuke Camera Vert Aperture
