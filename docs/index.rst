@@ -33,4 +33,5 @@ mayatools
     ^^^^^^^^^^^^^^
 
     .. autofunction:: mayatools.context.suspend_refresh()
+    .. autofunction:: mayatools.context.progress()
 

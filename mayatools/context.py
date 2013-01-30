@@ -3,7 +3,9 @@
 import contextlib
 import functools
 
-from maya import cmds
+from uitools.qt import QtGui
+
+from maya import cmds, mel
 
 
 @contextlib.contextmanager
@@ -182,12 +184,63 @@ def suspend_refresh():
 
 
 
+class progress(object):
+    """A context manager to assist with the global progress bar.
 
+    Since your code is running in the main thread, this is not actually
+    cancellable by the user since keyboard events will not be caught.
 
+    ::
 
+        with progress("Testing", max=100) as p:
+            for i in range(100):
+                time.sleep(0.02)
+                p.update(i, 'Testing %d of 100' % (i + 1))
 
+    .. warning:: This API is subject to fluctuation as we attempt to figure
+        out something that will not pause the event loop.
+    
+    """
 
+    def __init__(self, status, max=100, min=0):
+        self._status = status
+        self._min = min
+        self._max = max
 
+    def step(self, size=1):
+        cmds.progressBar(self._bar, edit=True, step=size)
+
+    def update(self, value=None, status=None, min=None, max=None):
+        self._status = status or self._status
+        self._min = min or self._min
+        self._max = max or self._max
+        kwargs = {'progress': value} if value is not None else {}
+        cmds.progressBar(self._bar, edit=True,
+            status=self._status,
+            minValue=self._min,
+            maxValue=self._max,
+            **kwargs
+        )
+
+    def _show(self):
+        main_bar = mel.eval('$tmp = $gMainProgressBar')
+        self._bar = cmds.progressBar(main_bar,
+            edit=True,
+            beginProgress=True,
+            status=self._status,
+            minValue=self._min,
+            maxValue=self._max,
+        )
+
+    def _hide(self):
+        cmds.progressBar(self._bar, edit=True, endProgress=True)
+
+    def __enter__(self):
+        self._show()
+        return self
+
+    def __exit__(self, *args):
+        self._hide()
 
 
 
