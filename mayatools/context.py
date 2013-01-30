@@ -3,7 +3,7 @@
 import contextlib
 import functools
 
-from uitools.qt import QtGui
+from uitools.qt import QtGui, QtCore
 
 from maya import cmds, mel
 
@@ -187,25 +187,37 @@ def suspend_refresh():
 class progress(object):
     """A context manager to assist with the global progress bar.
 
-    Since your code is running in the main thread, this is not actually
-    cancellable by the user since keyboard events will not be caught.
+    :param str status: The status message.
+    :param int max: The maximum value.
+    :param int min: The minimum value.
+    :param bool cancellable: If the process is cancellable.
+
+    If the process is cancellable, you must periodically check
+    :meth:`.was_cancelled` to see if the user did cancel the action. You must
+    be more defensive in your programming than normal since this must allow the
+    main event loop to process user events.
 
     ::
 
-        with progress("Testing", max=100) as p:
+        with progress("Testing", max=100, cancellable=True) as p:
             for i in range(100):
+                if p.was_cancelled():
+                    cmds.warn('You cancelled the process!')
+                    break
                 time.sleep(0.02)
                 p.update(i, 'Testing %d of 100' % (i + 1))
 
     .. warning:: This API is subject to fluctuation as we attempt to figure
         out something that will not pause the event loop.
-    
+
     """
 
-    def __init__(self, status, max=100, min=0):
+    def __init__(self, status, max=100, min=0, cancellable=False):
         self._status = status
         self._min = min
         self._max = max
+        self._cancellable = cancellable
+        self._was_cancelled = False
 
     def step(self, size=1):
         cmds.progressBar(self._bar, edit=True, step=size)
@@ -222,6 +234,28 @@ class progress(object):
             **kwargs
         )
 
+    def was_cancelled(self, max_time=0.01):
+        """Check if the user requested the action be cancelled.
+
+        :param float max_time: The maximum number of seconds to spend in the
+            main event loop checking for user actions.
+        :returns bool: True if the user requested the action be cancelled.
+
+        """
+        
+        if not self._cancellable:
+            return False
+
+        if self._was_cancelled:
+            return self._was_cancelled
+
+        # Allow the main thread to process events for just a little bit so that
+        # it may catch the escape key.
+        QtGui.QApplication.instance().processEvents(QtCore.QEventLoop.AllEvents, max_time)
+
+        self._was_cancelled = cmds.progressBar(self._bar, query=True, isCancelled=True)
+        return self._was_cancelled
+
     def _show(self):
         main_bar = mel.eval('$tmp = $gMainProgressBar')
         self._bar = cmds.progressBar(main_bar,
@@ -230,6 +264,7 @@ class progress(object):
             status=self._status,
             minValue=self._min,
             maxValue=self._max,
+            isInterruptable=self._cancellable,
         )
 
     def _hide(self):
