@@ -33,5 +33,6 @@ mayatools
     ^^^^^^^^^^^^^^
 
     .. autofunction:: mayatools.context.suspend_refresh()
-    .. autofunction:: mayatools.context.progress()
+    .. autoclass:: mayatools.context.progress
+        :members:
 

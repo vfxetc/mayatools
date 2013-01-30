@@ -220,9 +220,11 @@ class progress(object):
         self._was_cancelled = False
 
     def step(self, size=1):
+        """Increment the value."""
         cmds.progressBar(self._bar, edit=True, step=size)
 
     def update(self, value=None, status=None, min=None, max=None):
+        """Update the value and status."""
         self._status = status or self._status
         self._min = min or self._min
         self._max = max or self._max
@@ -256,7 +258,8 @@ class progress(object):
         self._was_cancelled = cmds.progressBar(self._bar, query=True, isCancelled=True)
         return self._was_cancelled
 
-    def _show(self):
+    def show(self):
+        """Show the progress bar."""
         main_bar = mel.eval('$tmp = $gMainProgressBar')
         self._bar = cmds.progressBar(main_bar,
             edit=True,
@@ -267,15 +270,16 @@ class progress(object):
             isInterruptable=self._cancellable,
         )
 
-    def _hide(self):
+    def hide(self):
+        """Hide the progress bar."""
         cmds.progressBar(self._bar, edit=True, endProgress=True)
 
     def __enter__(self):
-        self._show()
+        self.show()
         return self
 
     def __exit__(self, *args):
-        self._hide()
+        self.hide()
 
 
 
