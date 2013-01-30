@@ -3,7 +3,7 @@ import re
 
 from maya import cmds, mel
 
-from ks.maya import mcc
+from mayatools import mcc
 
 
 def get_cache_channels(cache_path):
