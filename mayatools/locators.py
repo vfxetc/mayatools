@@ -65,7 +65,12 @@ def iter_nuke_script(locator, time_range=None):
 
     yield 'Axis2 {\n'
     yield '\tname %s\n' % re.sub(r'\W+', '_', locator).strip('_')
-    yield '\trot_order %s\n' % cmds.xform(locator, query=True, rotateOrder=True).upper()
+
+    # Note that this should always be XYZ, even if the original locator was set
+    # to something else, since the baking process transfers all transformations
+    # onto a new locator which defaults to XYZ.
+    yield '\trot_order %s\n' % ('XYZ', 'YZX', 'ZXY', 'XZY', 'YXZ', 'ZYX')[cmds.getAttr('%s.rotateOrder' % locator)]
+
     for name, key in (('translate', 't'), ('rotate', 'r'), ('scaling', 's')):
         yield '\t%s {\n' % name
         for axis in 'xyz':
