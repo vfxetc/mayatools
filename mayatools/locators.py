@@ -65,6 +65,7 @@ def iter_nuke_script(locator, time_range=None):
 
     yield 'Axis2 {\n'
     yield '\tname %s\n' % re.sub(r'\W+', '_', locator).strip('_')
+    yield '\trot_order %s\n' % cmds.xform(locator, query=True, rotateOrder=True).upper()
     for name, key in (('translate', 't'), ('rotate', 'r'), ('scaling', 's')):
         yield '\t%s {\n' % name
         for axis in 'xyz':
