@@ -1,38 +1,29 @@
-.. _index:
-
 mayatools
 =========
 
-.. todo:: Better docs.
+A collection of general tools for working within Maya.
 
 
-``mayatools.context``
----------------------
+API Reference
+--------
 
-.. automodule:: mayatools.context
-    
-    Attribute Contexts
-    ^^^^^^^^^^^^^^^^^^
-    
-    .. autofunction:: mayatools.context.attrs
-    
+.. toctree::
+    :maxdepth: 2
 
-    Selection Contexts
-    ^^^^^^^^^^^^^^^^^^
-    
-    .. autofunction:: mayatools.context.selection
-    
+    context
+    downgrade
 
-    Command Contexts
-    ^^^^^^^^^^^^^^^^
-    
-    .. autofunction:: mayatools.context.command
+    debug
+    qt
 
+.. todo:: Document:
 
-    Other Contexts
-    ^^^^^^^^^^^^^^
-
-    .. autofunction:: mayatools.context.suspend_refresh()
-    .. autoclass:: mayatools.context.progress
-        :members:
-
+    - camera import/export
+    - geocache import/export
+    - playblasting
+    - reference edit import/export
+    - locator export
+    - testing
+    - cachefile parsing
+    - shelfs and menus
+    - Shotgun tickets

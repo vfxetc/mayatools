@@ -1,8 +1,33 @@
+"""
+
+In the current Western X pipeline, some steps are being performed with different
+versions of Maya for various reasons. Unfortunately, the version number does
+not always move up as scenes move from step to step, so sometimes we must
+downgrade while retaining as much information as possible.
+
+The :func:`.downgrade_to_2011` function is being developed as needs see fit to
+downgrade ASCII scene files to Maya 2011.
+
+"""
+
+
 import sys
 
 
 def downgrade_to_2011(src_path, dst_path):
-    
+    """Downgrade the given Maya ASCII scene to version 2011.
+
+    :param str src_path: The scene >2011 to downgrade.
+    :param str dst_path: Where to write the 2011 version.
+
+    Currently handles:
+
+    - cameras
+    - image planes
+    - meshes (roughly)
+
+    """
+
     if not src_path.endswith('.ma') or not dst_path.endswith('.ma'):
         raise ValueError('can only operate on MayaAscii files')
         

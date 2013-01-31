@@ -1,4 +1,16 @@
-"""Context managers for Maya state."""
+"""
+
+Context managers for restoring state after running requested tools.
+
+These are generally quite useful for creating tools which must modify state that
+is normally under control of the user. By using these, the state will be set
+back to what the user left it at.
+
+For example, several of Maya's tools work easiest when they are operating on
+the current selection, but that selection is not something that we want to
+expose to the user of our higher level tool.
+
+"""
 
 import contextlib
 import functools
@@ -17,7 +29,7 @@ def attrs(*args, **kwargs):
     :returns: A dictionary of the original values will be bound to the target of
         the with statement. Changed to that dictionary will be applied.
     
-    Useful for playblasting::
+    This is very for tools that must modify global state::
     
         >>> with mayatools.context.attrs({'defaultRenderGlobals.imageFormat': 8}):
         ...     # Playblast with confidence that the render globals will be reset.
@@ -139,7 +151,8 @@ def selection(*args, **kwargs):
     Example::
     
         >>> with selection(clear=True):
-        ...     # Do something with an empty selection.
+        ...     # Do something with an empty selection, but restore the user's
+        ...     # selection when we are done.
     
     """
     existing = cmds.ls(selection=True) or []
@@ -163,6 +176,12 @@ def suspend_refresh():
 
     Can be nested, where only the outermost context manager will resume
     refresing.
+
+    ::
+
+        >>> with suspend_refresh():
+        ...     do_something_with_high_drawing_cost()
+
 
     .. seealso::
 
@@ -206,9 +225,6 @@ class progress(object):
                     break
                 time.sleep(0.02)
                 p.update(i, 'Testing %d of 100' % (i + 1))
-
-    .. warning:: This API is subject to fluctuation as we attempt to figure
-        out something that will not pause the event loop.
 
     """
 

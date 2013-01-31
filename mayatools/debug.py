@@ -1,9 +1,6 @@
 """
 
-from metatools.imports import autoreload
 from mayatools import debug
-autoreload(debug)
-debug.disable_verbose_commands()
 debug.enable_verbose_commands()
 
 cmds.about(version=True)
@@ -36,10 +33,12 @@ class CommandWrapper(object):
 
 
 def enable_verbose_commands():
+    """x"""
     for name, value in cmds.__dict__.items():
         if callable(value) and not hasattr(value, 'wrapped_cmd'):
             setattr(cmds, name, CommandWrapper(value))
 
 def disable_verbose_commands():
+    """x"""
     for name, value in cmds.__dict__.items():
         setattr(cmds, name, getattr(value, 'wrapped_cmd', value))

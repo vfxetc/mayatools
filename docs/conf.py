@@ -17,6 +17,11 @@ import datetime
 import os
 import sys
 
+
+# So that some ImportError[s] can be ignored.
+os.environ['SPHINX'] = 'True'
+
+
 # Detect if we are on Read the Docs
 read_the_docs = os.environ.get('READTHEDOCS', None) == 'True'
 
