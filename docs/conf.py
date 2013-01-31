@@ -21,6 +21,16 @@ import sys
 # So that some ImportError[s] can be ignored.
 os.environ['SPHINX'] = 'True'
 
+class Mock(object):
+    pass
+
+sys.modules['sip'] = Mock()
+sys.modules['maya'] = maya_mod = Mock()
+maya_mod.cmds = maya_mod.mel = maya_mod.OpenMayaUI = Mock()
+sys.modules['uitools'] = ui_mod = Mock()
+ui_mod.qt = sys.modules['uitools.qt'] = Mock()
+ui_mod.qt.QtCore = ui_mod.qt.QtGui = ui_mod.qt.Qt = Mock
+
 
 # Detect if we are on Read the Docs
 read_the_docs = os.environ.get('READTHEDOCS', None) == 'True'
