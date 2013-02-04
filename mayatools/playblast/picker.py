@@ -103,7 +103,13 @@ class Picker(QtGui.QTabWidget):
             directory = os.path.join('/var/tmp/srv_playblast', name)
             
             # Try to grab the first frame.
-            file_names = os.listdir(directory)
+            try:
+                file_names = os.listdir(directory)
+            except OSError as e:
+                if e.errno == 20: # Not a folder.
+                    continue
+                raise
+
             frame_gen = (x for x in sorted(file_names) if os.path.splitext(x)[1] in ('.jpg', '.jpeg'))
             first_frame = next(frame_gen, None)
             if first_frame is None:
