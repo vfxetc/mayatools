@@ -291,8 +291,23 @@ class Dialog(QtGui.QDialog):
         self._summary.setText('\n'.join('%dx %s' % (c, n) for n, c in sorted(counts.iteritems())))
         
     def _on_export(self, *args):
+
+        # Other tools don't like cameras named the same as their transform,
+        # so this is a good place to warn about it.
+
+        transform, camera = self._cameras.itemData(self._cameras.currentIndex()).toPyObject()
+        transform_name = transform.rsplit('|', 1)[-1]
+        camera_name = camera.rsplit('|', 1)[-1]
+        if transform_name == camera_name:
+            res = QtGui.QMessageBox.warning(self, "Camera Name Collision",
+                "The selected camera and its transform have the same name, "
+                "which can cause issues with other tools.\n\nContinue anyways?",
+                "Abort", "Continue")
+            if not res:
+                return
+
         publisher = self._exporter_widget.export(
-            camera=self._cameras.itemData(self._cameras.currentIndex()).toPyObject()[1],
+            camera=camera,
             selection=list(self._nodes_to_export()),
         )
         if publisher:
