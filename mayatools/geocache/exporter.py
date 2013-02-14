@@ -46,7 +46,7 @@ class Exporter(sgpublish.exporter.maya.Exporter):
 
         if not os.path.exists(directory):
             os.makedirs(directory)
-        
+
         # Save the scene itself into the directory.
         src_path = cmds.file(q=True, sceneName=True)
         src_ext = os.path.splitext(src_path)[1]
@@ -228,6 +228,12 @@ class Dialog(QtGui.QDialog):
         self._exporter = Exporter()
         self._exporter_widget = sgpublish.exporter.ui.tabwidget.Widget()
         self.layout().addWidget(self._exporter_widget)
+        
+        # SGPublishes.
+        tab = sgpublish.exporter.ui.publish.maya.Widget(self._exporter)
+        tab.beforeScreenshot.connect(lambda *args: self.hide())
+        tab.afterScreenshot.connect(lambda *args: self.show())
+        self._exporter_widget.addTab(tab, "Publish to Shotgun")
 
         # Work area.
         tab = sgpublish.exporter.ui.workarea.Widget(self._exporter, {
@@ -241,12 +247,6 @@ class Dialog(QtGui.QDialog):
         })
         self._exporter_widget.addTab(tab, "Export to Work Area")
         
-        # SGPublishes.
-        tab = sgpublish.exporter.ui.publish.maya.Widget(self._exporter)
-        tab.beforeScreenshot.connect(lambda *args: self.hide())
-        tab.afterScreenshot.connect(lambda *args: self.show())
-        self._exporter_widget.addTab(tab, "Publish to Shotgun")
-
         button_layout = QtGui.QHBoxLayout()
         self.layout().addLayout(button_layout)
         
