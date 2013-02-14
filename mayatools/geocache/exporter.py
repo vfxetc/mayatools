@@ -44,6 +44,9 @@ class Exporter(sgpublish.exporter.maya.Exporter):
 
     def export(self, directory, path, to_cache, on_farm, name=None):
 
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        
         # Save the scene itself into the directory.
         src_path = cmds.file(q=True, sceneName=True)
         src_ext = os.path.splitext(src_path)[1]
@@ -54,7 +57,7 @@ class Exporter(sgpublish.exporter.maya.Exporter):
             cmds.file(save=True, type=maya_type)
         finally:
             cmds.file(rename=src_path)
-        
+
         # Add the path.
         to_cache = self.add_path_to_work(path, to_cache)
 
