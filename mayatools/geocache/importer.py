@@ -14,6 +14,7 @@ from sgfs import SGFS
 
 from sgfs.ui import product_select
 import sgfs.ui.scene_name.widget as scene_name
+import sgpublish.check.maya
 
 from . import utils
 
@@ -862,6 +863,9 @@ class Dialog(QtGui.QDialog):
                 cmds.warning('Error while restoring selection: %r' % e)
         else:
             cmds.select(clear=True)
+
+        # Trigger a publish version check.
+        sgpublish.check.maya.start_background_check()
 
 
 def __before_reload__():
