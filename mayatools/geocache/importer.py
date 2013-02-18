@@ -444,8 +444,8 @@ class CacheSelector(product_select.Layout):
     
     def _setup_sections(self):
         super(CacheSelector, self)._setup_sections()
-        self.register_section('Cache', self._iter_caches)
-        self.register_section('Object', self._iter_objects)
+        self.register_section('Cache', lambda path: sorted(self._iter_caches(path)))
+        self.register_section('Object', lambda path: sorted(self._iter_objects(path)))
     
     def _browse(self):
         files = cmds.fileDialog2(fileFilter="Geocache (*.xml)", dialogStyle=2, fileMode=1)
