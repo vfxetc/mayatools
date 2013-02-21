@@ -14,7 +14,6 @@ except ImportError:
     _has_maya = False
 else:
     _has_maya = maya_cmds is not None
-    _is_batch = threads.call_in_main_thread(maya_cmds.about, batch=True) if _has_maya else True
 
 
 
@@ -28,6 +27,8 @@ def requires_maya(func=None, gui=False):
     if _has_maya and not hasattr(maya_cmds, 'about'):
         from maya import standalone
         standalone.initialize()
+
+    _is_batch = _has_maya and threads.call_in_main_thread(maya_cmds.about, batch=True)
 
     if not _has_maya or (gui and _is_batch):
         @functools.wraps(func)
