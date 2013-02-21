@@ -108,7 +108,29 @@ class TestSelectionContext(TestCase):
         self.assertEqual(sorted(cmds.ls(selection=True)), sorted([t1, s1]))
     
     
-    
+class TestDeleteContext(TestCase):
+
+    @requires_maya
+    def test_pre_register(self):
+
+        t, s = cmds.sphere()
+
+        with ctx.delete(s):
+            pass
+
+        self.assertRaises(RuntimeError, cmds.nodeType, s)
+        self.assertTrue(cmds.nodeType(t), 'transform')
+
+    @requires_maya
+    def test_post_register(self):
+
+        with ctx.delete() as to_delete:
+            t, s = cmds.sphere()
+            to_delete.append(s)
+
+        self.assertRaises(RuntimeError, cmds.nodeType, s)
+        self.assertTrue(cmds.nodeType(t), 'transform')
+
     
     
     

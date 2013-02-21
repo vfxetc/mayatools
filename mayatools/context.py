@@ -167,6 +167,36 @@ def selection(*args, **kwargs):
             cmds.select(clear=True)
     
 
+@contextlib.contextmanager
+def delete(*to_delete, **kwargs):
+    """A context manager that deletes nodes after exiting.
+
+    :param args: Passed to ``cmds.delete``.
+    :param kwargs: Passed to ``cmds.delete``.
+    
+    A list of the nodes to delete will be bound to the target of the with
+    statement. Changes to that list will be applied.
+    
+    Example::
+    
+        >>> with delete() as to_delete:
+        ...     # Create temporary nodes and register them in to_delete.
+
+    This is useful when creating temporary nodes, and registering them for
+    deletion after the context is exited, even if the process failed.
+    
+    """
+
+    # Make it mutable.
+    to_delete = list(to_delete)
+
+    try:
+        yield to_delete
+    finally:
+        if to_delete:
+            cmds.delete(*to_delete)
+
+
 _suspend_depth = 0
 
 @contextlib.contextmanager
