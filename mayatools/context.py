@@ -155,7 +155,7 @@ def selection(*args, **kwargs):
         ...     # selection when we are done.
     
     """
-    existing = cmds.ls(selection=True) or []
+    existing = cmds.ls(selection=True, long=True) or []
     try:
         if args or kwargs:
             cmds.select(*args, **kwargs)
