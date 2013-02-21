@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+import contextlib
 import os
 import re
 import functools
@@ -17,6 +18,8 @@ import sgpublish.uiutils
 
 import mayatools.context
 from mayatools import downgrade
+from mayatools import context
+from mayatools.transforms import transfer_global_transforms
 
 
 # Default Nuke Camera Vert Aperture
@@ -54,7 +57,7 @@ class CameraExporter(sgpublish.exporter.maya.Exporter):
         
         return self._export(directory, path, **kwargs)
         
-    def _export(self, directory, path, camera, selection=None):
+    def _export(self, directory, path, camera, selection, bake_to_world_space):
         
         export_path = path
         print '# Exporting camera to %s' % path
@@ -67,41 +70,54 @@ class CameraExporter(sgpublish.exporter.maya.Exporter):
         if maya_version > 2011:
             export_path = os.path.splitext(path)[0] + ('.%d.ma' % maya_version)
         
-        # Reset camera settings.
-        original_zoom = tuple(cmds.getAttr(camera + '.' + attr) for attr in ('horizontalFilmOffset', 'verticalFilmOffset', 'overscan'))
-        cmds.setAttr(camera + '.horizontalFilmOffset', 0)
-        cmds.setAttr(camera + '.verticalFilmOffset', 0)
-        cmds.setAttr(camera + '.overscan', 1)
-        
-        if selection is not None:
-            original_selection = cmds.ls(sl=True)
-            cmds.select(selection, replace=True)
-        else:
-            original_selection = None
-        
-        # The `constructionHistory` here is only to avoid a bug that crashes
-        # Maya 2013. I have no idea why it does that, but it does. It only
-        # seems to happen on the second runthrough of this tool, with no
-        # changes inbettween (using the mayatools.debug.enable_verbose_commands
-        # reveals an identical code path). Hopefully, this fixes it...
-        cmds.file(export_path, type='mayaAscii', exportSelected=True, constructionHistory=False)
-        
-        # Rewrite the file to work with 2011.
-        if maya_version > 2011:
-            downgrade.downgrade_to_2011(export_path, path)
-        
-        self._export_nuke(os.path.splitext(path)[0] + '.nk', camera)
+        with contextlib.nested(context.delete(), context.selection(), context.attrs({
+            camera + '.horizontalFilmOffset': 0,
+            camera + '.verticalFilmOffset': 0,
+            camera + '.overscan': 1,
+        })) as (to_delete, _, _):
+            
+            if selection:
+                cmds.select(selection, replace=True)
+            elif selection is not None:
+                cmds.select(clear=True)
 
-        # Restore camera settings.
-        cmds.setAttr(camera + '.horizontalFilmOffset', original_zoom[0])
-        cmds.setAttr(camera + '.verticalFilmOffset', original_zoom[1])
-        cmds.setAttr(camera + '.overscan', original_zoom[2])
-        
-        # Restore selection.
-        if original_selection:
-            cmds.select(original_selection, replace=True)
-        elif original_selection is not None:
-            cmds.select(clear=True)
+            # Bake global transforms to a duplicate camera if requested.
+            if bake_to_world_space:
+
+                # Determine a name for the new transform; strip namespaces and
+                # collapse the heirarchy.
+                # '|ns:parent|ns2:child' -> 'parent_child'
+                old_transform = cmds.listRelatives(camera, parent=True, fullPath=True)[0]
+                export_name = re.sub(r'(^|\|)([^:]+:)?', '_', old_transform).strip('_') + '_world'
+
+                # Duplicate the transform and its children (e.g. the camera),
+                # and find the (new) camera that we want to export.
+                new_transform = cmds.duplicate(old_transform, name=export_name)[0]
+                to_delete.append(new_transform)
+                cmds.parent(new_transform, world=True)
+                camera = cmds.listRelatives(new_transform, children=True, type='camera', path=True)[0]
+
+                # Bake transforms.
+                transfer_global_transforms({new_transform: old_transform})
+
+                # Select everything under the new transform.
+                cmds.select(cmds.listRelatives(new_transform, allDescendents=True, path=True), add=True)
+
+            # The `constructionHistory` here is only to avoid a bug that crashes
+            # Maya 2013. I have no idea why it does that, but it does. It only
+            # seems to happen on the second runthrough of this tool, with no
+            # changes inbettween (using the mayatools.debug.enable_verbose_commands
+            # reveals an identical code path). Hopefully, this fixes it...
+            cmds.file(export_path, type='mayaAscii', exportSelected=True, constructionHistory=False)
+            
+            # Rewrite the file to work with 2011.
+            if maya_version > 2011:
+                downgrade.downgrade_to_2011(export_path, path)
+            
+            self._export_nuke(os.path.splitext(path)[0] + '.nk', camera)
+
+
+
 
     def _export_nuke(self, path, camera):
 
@@ -130,7 +146,7 @@ class CameraExporter(sgpublish.exporter.maya.Exporter):
         hfas = []
         vfas = []
 
-        with mayatools.context.suspend_refresh():
+        with context.suspend_refresh():
 
             for time in xrange(min_time, max_time):
                 cmds.currentTime(time, edit=True)
@@ -218,6 +234,12 @@ class Dialog(QtGui.QDialog):
         box.layout().addWidget(self._summary)
         box.setSizePolicy(QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Fixed)
         
+        box = QtGui.QGroupBox("Options")
+        self.layout().addWidget(box)
+        box.setLayout(QtGui.QVBoxLayout())
+        self._worldSpaceBox = QtGui.QCheckBox("Bake to World Space (for debugging)")
+        box.layout().addWidget(self._worldSpaceBox)
+
         self._exporter = CameraExporter()
         self._exporter_widget = sgpublish.exporter.ui.tabwidget.Widget()
         self.layout().addWidget(self._exporter_widget)
@@ -306,9 +328,11 @@ class Dialog(QtGui.QDialog):
             if not res:
                 return
 
+        selection = [] if self._worldSpaceBox.isChecked() else list(self._nodes_to_export())
         publisher = self._exporter_widget.export(
             camera=camera,
-            selection=list(self._nodes_to_export()),
+            selection=selection,
+            bake_to_world_space=self._worldSpaceBox.isChecked()
         )
         if publisher:
             sgpublish.uiutils.announce_publish_success(publisher)
