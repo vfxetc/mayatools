@@ -3,9 +3,10 @@ import re
 from maya import cmds
 
 from . import context
+from .transforms import transfer_global_transforms
 
 
-def bake_global_locators(nodes, time_range=None):
+def bake_global_locators(nodes):
     """Create a locator for each transform node (given or above given)
     and bake in the global transformation of that node.
 
@@ -31,30 +32,16 @@ def bake_global_locators(nodes, time_range=None):
     if not transforms:
         raise ValueError('could not find transforms from given nodes')
 
-    locators = []
-    constraints = []
-    for t in transforms:
+    locator_to_transform = {}
 
-        name = re.sub(r'\W+', '_', t).strip('_') + '_locator'
-        l = cmds.spaceLocator(name=name)[0]
-        locators.append(l)
+    for transform in transforms:
+        name = re.sub(r'\W+', '_', transform).strip('_') + '_locator'
+        locator = cmds.spaceLocator(name=name)[0]
+        locator_to_transform[locator] = transform
 
-        c1 = cmds.parentConstraint(t, l)
-        c2 = cmds.scaleConstraint(t, l)
-        constraints.extend((c1, c2))
+    transfer_global_transforms(locator_to_transform)
 
-    if time_range is None:
-        time_range = (cmds.playbackOptions(q=True, minTime=True), cmds.playbackOptions(q=True, maxTime=True))
-    
-    with context.suspend_refresh():
-        cmds.bakeResults(*locators, **dict(
-            simulation=True,
-            time=time_range,
-        ))
-
-    cmds.delete(*constraints)
-
-    return locators
+    return sorted(locator_to_transform)
 
 
 def iter_nuke_script(locator, time_range=None):
