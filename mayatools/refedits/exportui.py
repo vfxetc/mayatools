@@ -11,6 +11,7 @@ import sgpublish.exporter.ui.publish.maya
 import sgpublish.exporter.ui.tabwidget
 import sgpublish.exporter.ui.workarea
 import sgpublish.uiutils
+from sgpublish.exporter.ui.publish.generic import PublishSafetyError
 
 
 class RefEditExporter(sgpublish.exporter.maya.Exporter):
@@ -99,7 +100,12 @@ class Dialog(QtGui.QDialog):
         
     def _on_export(self, *args):
         references = [path for name, path, checkbox in self._refs if checkbox.isChecked()]
-        publisher = self._exporter_widget.export(references=references)
+        
+        try:
+            publisher = self._exporter_widget.export(references=references)
+        except PublishSafetyError:
+            return
+        
         if publisher:
             sgpublish.uiutils.announce_publish_success(publisher)
         self.close()

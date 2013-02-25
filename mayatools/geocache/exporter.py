@@ -19,6 +19,7 @@ import sgpublish.exporter.ui.publish.maya
 import sgpublish.exporter.ui.tabwidget
 import sgpublish.exporter.ui.workarea
 import sgpublish.uiutils
+from sgpublish.exporter.ui.publish.generic import PublishSafetyError
 
 from .utils import export_cache
 
@@ -316,13 +317,23 @@ class Dialog(QtGui.QDialog):
                 yield members, name, frame_from, frame_to, world
         
     def _on_process_button(self):
-        publisher = self._exporter_widget.export(to_cache=list(self._iter_to_cache()), on_farm=False)
+        
+        try:
+            publisher = self._exporter_widget.export(to_cache=list(self._iter_to_cache()), on_farm=False)
+        except PublishSafetyError:
+            return
+
         if publisher:
             sgpublish.uiutils.announce_publish_success(publisher)
         self.close()
         
     def _on_queue_button(self):
-        publisher = self._exporter_widget.export(to_cache=list(self._iter_to_cache()), on_farm=True)
+
+        try:
+            publisher = self._exporter_widget.export(to_cache=list(self._iter_to_cache()), on_farm=True)
+        except PublishSafetyError:
+            return
+
         if publisher:
             sgpublish.uiutils.announce_publish_success(publisher)
         self.close()

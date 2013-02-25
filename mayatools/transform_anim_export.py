@@ -13,6 +13,7 @@ import sgpublish.exporter.ui.publish.maya
 import sgpublish.exporter.ui.tabwidget
 import sgpublish.exporter.ui.workarea
 import sgpublish.uiutils
+from sgpublish.exporter.ui.publish.generic import PublishSafetyError
 
 from .locators import bake_global_locators, iter_nuke_script
 from . import context
@@ -119,11 +120,15 @@ class Dialog(QtGui.QDialog):
         button_layout.addWidget(button)
         
     def _onExportClicked(self):
-        with ticket_ui_context():
+
+        try:
             publisher = self._exporter_widget.export(nodes=self._setPicker.allSelectedNodes())
-            if publisher:
-                sgpublish.uiutils.announce_publish_success(publisher)
-            self.close()
+        except PublishSafetyError:
+            return
+    
+        if publisher:
+            sgpublish.uiutils.announce_publish_success(publisher)
+        self.close()
 
 
 def __before_reload__():
