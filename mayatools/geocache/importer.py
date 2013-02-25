@@ -461,6 +461,11 @@ class CacheSelector(product_select.Layout):
             path = os.path.join(task_path, 'maya', 'data', geo_cache_name)
             if os.path.exists(path):
                 for name in os.listdir(path):
+
+                    new_path = os.path.join(path, name)
+                    if not os.path.isdir(new_path):
+                        continue
+
                     m = re.search('v(\d+)(?:_r(\d+))?', name)
                     if m:
                         key = tuple(int(x or 0) for x in m.groups()) + (name, )
@@ -483,6 +488,7 @@ class CacheSelector(product_select.Layout):
         
         if os.path.exists(path):
             for name in os.listdir(path):
+                
                 
                 # Most caches have the XML names the same as the object.
                 xml_path = os.path.join(path, name, name + '.xml')
