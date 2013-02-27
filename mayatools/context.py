@@ -46,7 +46,10 @@ def attrs(*args, **kwargs):
         # Set all of the requested attributes.
         for name, value in kwargs.iteritems():
             existing[name] = cmds.getAttr(name)
-            cmds.setAttr(name, value)
+            kw = {}
+            if isinstance(value, basestring):
+                kw['type'] = 'string'
+            cmds.setAttr(name, value, **kw)
         
         yield existing
     
@@ -54,7 +57,10 @@ def attrs(*args, **kwargs):
         
         # Reset them back to normal.
         for name, value in existing.iteritems():
-            cmds.setAttr(name, value)
+            kw = {}
+            if isinstance(value, basestring):
+                kw['type'] = 'string'
+            cmds.setAttr(name, value, **kw)
 
 
 def command(func, *args, **kwargs):
