@@ -2,7 +2,24 @@ import struct
 import string
 
 
-printable = set(string.printable)
+isprintable = set(string.printable).difference(string.whitespace).__contains__
+
+
+def hexdump(*args, **kwargs):
+    return ''.join(_hexdump(*args, **kwargs))
+
+def _hexdump(raw, initial_offset=0, chunk=4, line=16):
+    chunk2 = chunk * 2
+    line2 = line * 2
+    for i in xrange(0, len(raw), line):
+        yield '%04x: ' % (i + initial_offset)
+        raw_line = raw[i:i + line]
+        encoded = raw_line.encode('hex')
+        encoded += ' ' * (line2 - len(encoded))
+        for j in xrange(0, line2, chunk2):
+            yield '%s ' % encoded[j:j + chunk2]
+        yield ''.join(c if isprintable(c) else '.' for c in raw_line)
+        yield '\n'
 
 
 group_tags = set()
@@ -28,12 +45,62 @@ def size_padding(size, alignment):
 
 class Chunk(object):
 
+    tag_classes = {}
+    format = None
+
+    @classmethod
+    def register_tag(cls, subcls):
+        cls.tag_classes[subcls.__name__] = subcls
+
+    @classmethod
+    def create(cls, tag, data):
+        cls = cls.tag_classes.get(tag, cls)
+        return cls(tag, data)
+
     def __init__(self, tag, data):
         self.tag = tag
         self.data = data
+        self.unpacked = self.unpack(data)
+        self.value = self.interpret(self.unpacked)
+
+    def unpack(self, data):
+        if self.format:
+            return struct.unpack(self.format, data)
+        else:
+            return None
+
+    def interpret(self, values):
+        return None
 
     def __repr__(self):
-        return 'Chunk(%r, size=%d)' % (self.tag, len(self.data))
+        return '<%s %r size=%d value=%r>' % (self.__class__.__name__, self.tag, len(self.data), self.value)
+
+
+@Chunk.register_tag
+class SIZE(Chunk):
+    format = '>L'
+
+    def interpret(self, unpacked):
+        return unpacked[0]
+
+
+@Chunk.register_tag
+class CHNM(Chunk):
+
+    def unpack(self, data):
+        return data
+
+    def interpret(self, data):
+        return data.rstrip('\0')
+
+
+@Chunk.register_tag
+class FBCA(Chunk):
+
+    def unpack(self, data):
+        return struct.unpack('>%sf' % (len(data) / 4), data)
+    def interpret(self, values):
+        return values
 
 
 class Group(list):
@@ -54,10 +121,11 @@ def parse(file):
 
     # Make sure that it looks like a Maya file.
     file.seek(0)
-    header = file.read(12)
-    if len(header) != 12 or header[:4] != 'FOR4' or header[-4:] != 'Maya':
-        raise ValueError('Not a Maya file: header=%r' % header)
-    file.seek(0)
+    tag = file.read(4)
+    if tag == 'Maya':
+        file.read(4)
+    else:
+        file.seek(0)
 
     groups = []
 
@@ -78,6 +146,7 @@ def parse(file):
             start = file.tell()
             group_tag = file.read(4)
             group = Group(tag, size, start, group_tag)
+
             print 'Start %s (%s) of length %d' % (group_tag, tag, size)
 
             if groups:
@@ -86,20 +155,14 @@ def parse(file):
             groups.append(group)
 
         else:
-            data = file.read(size)
-            chunk = Chunk(tag, data)
-            groups[-1].append(chunk)
-            print 'Chunk %s of length %d' % (chunk.tag, len(chunk.data))
 
-            # Hex dump.
-            for line_i in xrange(0, size, 16):
-                line = data[line_i:line_i + 16]
-                encoded = line.encode('hex')
-                print '   ',
-                for hex_i in xrange(0, len(encoded), 8):
-                    print encoded[hex_i:hex_i + 8],
-                print ':', ''.join(c if c in printable else '•' for c in line)
-            print
+            data_offset = file.tell()
+            data = file.read(size)
+            chunk = Chunk.create(tag, data)
+            groups[-1].append(chunk)
+
+            print chunk #'Chunk %s of length %d' % (chunk.tag, len(chunk.data))
+            print hexdump(data, data_offset)
 
             # And padding
             padding = size_padding(size, groups[-1].alignment)
