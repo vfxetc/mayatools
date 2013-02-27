@@ -117,58 +117,70 @@ class Group(list):
         self.end = self.start + self.size + _get_padding(self.size, self.alignment)
 
 
+class Parser(object):
 
+    def __init__(self, file):
+        self.file = file
+        self._group_stack = []
 
-def parse(file):
+    def parse_next(self):
 
-
-    groups = []
-
-    while True:
-
-        while groups and groups[-1].end <= file.tell():
-            groups.pop(-1)
+        # Clean the group stack.
+        while self._group_stack and self._group_stack[-1].end <= self.file.tell():
+            self._group_stack.pop(-1)
 
         # Read a tag and size from the file.
-        tag = file.read(4)
+        tag = self.file.read(4)
         if not tag:
-            break
-
-        size = struct.unpack(">L", file.read(4))[0]
+            return
+        size = struct.unpack(">L", self.file.read(4))[0]
 
         if tag in _group_tags:
-            # TODO: push this in a group stack.
-            start = file.tell()
-            group_tag = file.read(4)
-            group = Group(tag, size, start, group_tag)
+
+            offset = self.file.tell()
+            group_tag = self.file.read(4)
+            group = Group(tag, size, offset, group_tag)
 
             print 'Start %s (%s) of length %d' % (group_tag, tag, size)
 
-            if groups:
-                groups[-1].append(group)
+            # Add it as a child of the current group.
+            if self._group_stack:
+                self._group_stack[-1].append(group)
 
-            groups.append(group)
+            self._group_stack.append(group)
+
+            return group
 
         else:
 
-            data_offset = file.tell()
-            data = file.read(size)
+            offset = self.file.tell()
+            data = self.file.read(size)
             chunk = Chunk.create(tag, data)
-            groups[-1].append(chunk)
+            self._group_stack[-1].append(chunk)
 
-            print chunk #'Chunk %s of length %d' % (chunk.tag, len(chunk.data))
-            print hexdump(data, data_offset)
+            print chunk
+            print hexdump(data, offset)
 
-            # And padding
-            padding = _get_padding(size, groups[-1].alignment)
+            # Cleanup padding.
+            padding = _get_padding(size, self._group_stack[-1].alignment)
             if padding:
-                file.read(padding)
+                self.file.read(padding)
+
+            return chunk
+
+    def parse_all(self):
+        while self.parse_next() is not None:
+            pass
+
+
 
 
 
 if __name__ == '__main__':
     import sys
-    parse(open(sys.argv[1]))
+    
+    parser = Parser(open(sys.argv[1]))
+    parser.parse_all()
 
 
 
