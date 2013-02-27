@@ -2,7 +2,7 @@ import struct
 import string
 
 
-isprintable = set(string.printable).difference(string.whitespace).__contains__
+_is_printable = set(string.printable).difference(string.whitespace).__contains__
 
 
 def hexdump(*args, **kwargs):
@@ -18,25 +18,25 @@ def _hexdump(raw, initial_offset=0, chunk=4, line=16):
         encoded += ' ' * (line2 - len(encoded))
         for j in xrange(0, line2, chunk2):
             yield '%s ' % encoded[j:j + chunk2]
-        yield ''.join(c if isprintable(c) else '.' for c in raw_line)
+        yield ''.join(c if _is_printable(c) else '.' for c in raw_line)
         yield '\n'
 
 
-group_tags = set()
+_group_tags = set()
 _tag_alignments = {}
 
 for base in ('FORM', 'CAT ', 'LIST', 'PROP'):
     for char, alignment in (('', 2), ('4', 4), ('8', 8)):
         tag = base[:-len(char)] + char if char else base
-        group_tags.add(tag)
+        _group_tags.add(tag)
         _tag_alignments[tag] = alignment
 
 
-def tag_alignment(tag):
+def _get_tag_alignment(tag):
     return _tag_alignments.get(tag, 2)
 
 
-def size_padding(size, alignment):
+def _get_padding(size, alignment):
     if size % alignment == 0:
         return 0
     else:
@@ -113,19 +113,14 @@ class Group(list):
         self.start = start
         self.tag = tag
 
-        self.alignment = tag_alignment(self.type)
-        self.end = self.start + self.size + size_padding(self.size, self.alignment)
+        self.alignment = _get_tag_alignment(self.type)
+        self.end = self.start + self.size + _get_padding(self.size, self.alignment)
+
+
 
 
 def parse(file):
 
-    # Make sure that it looks like a Maya file.
-    file.seek(0)
-    tag = file.read(4)
-    if tag == 'Maya':
-        file.read(4)
-    else:
-        file.seek(0)
 
     groups = []
 
@@ -141,7 +136,7 @@ def parse(file):
 
         size = struct.unpack(">L", file.read(4))[0]
 
-        if tag in group_tags:
+        if tag in _group_tags:
             # TODO: push this in a group stack.
             start = file.tell()
             group_tag = file.read(4)
@@ -165,7 +160,7 @@ def parse(file):
             print hexdump(data, data_offset)
 
             # And padding
-            padding = size_padding(size, groups[-1].alignment)
+            padding = _get_padding(size, groups[-1].alignment)
             if padding:
                 file.read(padding)
 
