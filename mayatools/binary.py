@@ -8,10 +8,11 @@ _is_printable = set(string.printable).difference(string.whitespace).__contains__
 def hexdump(*args, **kwargs):
     return ''.join(_hexdump(*args, **kwargs))
 
-def _hexdump(raw, initial_offset=0, chunk=4, line=16):
+def _hexdump(raw, initial_offset=0, chunk=4, line=16, indent=''):
     chunk2 = chunk * 2
     line2 = line * 2
     for i in xrange(0, len(raw), line):
+        yield indent
         yield '%04x: ' % (i + initial_offset)
         raw_line = raw[i:i + line]
         encoded = raw_line.encode('hex')
@@ -53,15 +54,20 @@ class Chunk(object):
         cls.tag_classes[subcls.__name__] = subcls
 
     @classmethod
-    def create(cls, tag, data):
+    def create(cls, tag, *args):
         cls = cls.tag_classes.get(tag, cls)
-        return cls(tag, data)
+        return cls(tag, *args)
 
-    def __init__(self, tag, data):
+    def __init__(self, tag, data, offset=None):
         self.tag = tag
         self.data = data
+        self.offset = offset
         self.unpacked = self.unpack(data)
         self.value = self.interpret(self.unpacked)
+
+    def pprint(self, _indent):
+        print _indent * '    ' + ('%s; %d bytes' % (self.tag, len(self.data)))
+        print hexdump(self.data, self.offset, indent=(_indent + 1) * '    ').rstrip()
 
     def unpack(self, data):
         if self.format:
@@ -103,10 +109,9 @@ class FBCA(Chunk):
         return values
 
 
-class Group(list):
+class Group(object):
 
     def __init__(self, type_, size, start, tag):
-        super(Group, self).__init__()
 
         self.type = type_
         self.size = size
@@ -116,36 +121,47 @@ class Group(list):
         self.alignment = _get_tag_alignment(self.type)
         self.end = self.start + self.size + _get_padding(self.size, self.alignment)
 
+        self.children = []
+
+    def pprint(self, _indent=0):
+        print _indent * '    ' + ('%s group (%s); %d bytes for %d children:' % (self.tag, self.type, self.size, len(self.children)))
+        for child in self.children:
+            child.pprint(_indent=_indent + 1)
+
+
 
 class Parser(object):
 
     def __init__(self, file):
-        self.file = file
+        self._file = file
         self._group_stack = []
+        self.children = []
+
+    def pprint(self, _indent=-1):
+        for child in self.children:
+            child.pprint(_indent=_indent + 1)
 
     def parse_next(self):
 
         # Clean the group stack.
-        while self._group_stack and self._group_stack[-1].end <= self.file.tell():
+        while self._group_stack and self._group_stack[-1].end <= self._file.tell():
             self._group_stack.pop(-1)
 
         # Read a tag and size from the file.
-        tag = self.file.read(4)
+        tag = self._file.read(4)
         if not tag:
             return
-        size = struct.unpack(">L", self.file.read(4))[0]
+        size = struct.unpack(">L", self._file.read(4))[0]
 
         if tag in _group_tags:
 
-            offset = self.file.tell()
-            group_tag = self.file.read(4)
+            offset = self._file.tell()
+            group_tag = self._file.read(4)
             group = Group(tag, size, offset, group_tag)
 
-            print 'Start %s (%s) of length %d' % (group_tag, tag, size)
-
             # Add it as a child of the current group.
-            if self._group_stack:
-                self._group_stack[-1].append(group)
+            group_head = self._group_stack[-1] if self._group_stack else self
+            group_head.children.append(group)
 
             self._group_stack.append(group)
 
@@ -153,18 +169,17 @@ class Parser(object):
 
         else:
 
-            offset = self.file.tell()
-            data = self.file.read(size)
-            chunk = Chunk.create(tag, data)
-            self._group_stack[-1].append(chunk)
+            offset = self._file.tell()
+            data = self._file.read(size)
+            chunk = Chunk.create(tag, data, offset)
 
-            print chunk
-            print hexdump(data, offset)
+            assert self._group_stack, 'Data chunk outside of group.'
+            self._group_stack[-1].children.append(chunk)
 
             # Cleanup padding.
             padding = _get_padding(size, self._group_stack[-1].alignment)
             if padding:
-                self.file.read(padding)
+                self._file.read(padding)
 
             return chunk
 
@@ -181,6 +196,7 @@ if __name__ == '__main__':
     
     parser = Parser(open(sys.argv[1]))
     parser.parse_all()
+    parser.pprint()
 
 
 
