@@ -46,7 +46,7 @@ def _get_padding(size, alignment):
         return alignment - size % alignment
 
 
-class Parent(object):
+class Node(object):
 
     def __init__(self):
         self.children = []
@@ -55,12 +55,13 @@ class Parent(object):
     def add_child(self, child):
         self.children.append(child)
         self.types.setdefault(child.tag, []).append(child)
+        child.parent = self
 
     def find(self, tag):
         for child in self.children:
             if child.tag == tag:
                 yield child
-            if isinstance(child, Parent):
+            if isinstance(child, Node):
                 for x in child.find(tag):
                     yield x
 
@@ -71,10 +72,15 @@ class Parent(object):
             return args[0]
         raise KeyError(tag)
 
+    def dumps_iter(self):
+        for child in self.children:
+            for x in child.dumps_iter():
+                yield x
 
-class Group(Parent):
 
-    def __init__(self, type_, size, start, tag):
+class Group(Node):
+
+    def __init__(self, tag, type_='FOR4', size=0, start=0):
         super(Group, self).__init__()
 
         self.type = type_
@@ -90,13 +96,26 @@ class Group(Parent):
         for child in self.children:
             child.pprint(_indent=_indent + 1)
 
+    def dumps_iter(self):
+        output = []
+        for child in self.children:
+            output.extend(child.dumps_iter())
+        yield self.type
+        yield struct.pack(">L", sum(len(x) for x in output) + 4)
+        yield self.tag
+        for x in output:
+            yield x
+
 
 class Chunk(object):
 
-    def __init__(self, tag, data, offset=None):
+    def __init__(self, tag, data='', offset=None, **kwargs):
+        self.parent = None
         self.tag = tag
         self.data = data
         self.offset = offset
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
 
     def pprint(self, _indent):
         print _indent * '    ' + ('%s; %d bytes' % (self.tag, len(self.data)))
@@ -104,6 +123,14 @@ class Chunk(object):
 
     def __repr__(self):
         return '<%s %s; %d bytes>' % (self.__class__.__name__, self.tag, len(self.data))
+
+    def dumps_iter(self):
+        yield self.tag
+        yield struct.pack(">L", len(self.data))
+        yield self.data
+        padding = _get_padding(len(self.data), self.parent.alignment)
+        if padding:
+            yield '\0' * padding
 
     def _unpack(self, format_char):
         element_size = struct.calcsize('>' + format_char)
@@ -113,18 +140,32 @@ class Chunk(object):
         unpacked = struct.unpack(format_string, self.data)
         return array.array(format_char, unpacked)
 
-    def as_ints(self):
+    def _pack(self, format_char, values):
+        self.data = struct.pack('>%d%s' % (len(values), format_char), *values)
+
+    @property
+    def ints(self):
         return self._unpack('L')
 
-    def as_floats(self):
+    @property
+    def floats(self):
         return self._unpack('f')
 
-    def as_string(self):
+    @floats.setter
+    def floats(self, values):
+        self._pack('f', values)
+
+    @property
+    def string(self):
         return self.data.rstrip('\0')
 
+    @string.setter
+    def string(self, v):
+        self.data = str(v).rstrip('\0') + '\0'
 
 
-class Parser(Parent):
+
+class Parser(Node):
 
     def __init__(self, file):
         super(Parser, self).__init__()
@@ -153,7 +194,7 @@ class Parser(Parent):
 
             offset = self._file.tell()
             group_tag = self._file.read(4)
-            group = Group(tag, size, offset, group_tag)
+            group = Group(group_tag, tag, size, offset)
 
             # Add it as a child of the current group.
             group_head = self._group_stack[-1] if self._group_stack else self
@@ -195,14 +236,27 @@ if __name__ == '__main__':
     parser.pprint()
 
     header = parser.find_one('CACH')
-    s_time = header.find_one('STIM').as_ints()[0]
-    e_time = header.find_one('ETIM').as_ints()[0]
+    s_time = header.find_one('STIM').ints[0]
+    e_time = header.find_one('ETIM').ints[0]
     print 'Time range: %d to %d' % (s_time, e_time)
 
     channels = parser.find_one('MYCH')
     for name, data in zip(channels.find('CHNM'), channels.find('FBCA')):
-        data = data.as_floats()
-        print name.as_string(), len(data)
+        # name.string = ''.join(reversed(name.string))
+        #data.floats = [int(not x) for x in data.floats]
+        name = name.string
+        data = data.floats
+        print name, len(data)
+
+    print
+
+    encoded = ''.join(parser.dumps_iter())
+
+    with open('inverted_%s' % sys.argv[1], 'wb') as fh:
+        fh.write(encoded)
+
+    print len(encoded)
+    print hexdump(encoded)
 
 
 
