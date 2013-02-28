@@ -235,29 +235,3 @@ if __name__ == '__main__':
     parser.parse_all()
     parser.pprint()
 
-    header = parser.find_one('CACH')
-    s_time = header.find_one('STIM').ints[0]
-    e_time = header.find_one('ETIM').ints[0]
-    print 'Time range: %d to %d' % (s_time, e_time)
-
-    channels = parser.find_one('MYCH')
-    for name, data in zip(channels.find('CHNM'), channels.find('FBCA')):
-        # name.string = ''.join(reversed(name.string))
-        #data.floats = [int(not x) for x in data.floats]
-        name = name.string
-        data = data.floats
-        print name, len(data)
-
-    print
-
-    encoded = ''.join(parser.dumps_iter())
-
-    with open('inverted_%s' % sys.argv[1], 'wb') as fh:
-        fh.write(encoded)
-
-    print len(encoded)
-    print hexdump(encoded)
-
-
-
-
