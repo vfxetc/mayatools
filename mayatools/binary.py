@@ -1,3 +1,5 @@
+import array
+import itertools
 import struct
 import string
 
@@ -44,74 +46,36 @@ def _get_padding(size, alignment):
         return alignment - size % alignment
 
 
-class Chunk(object):
+class Parent(object):
 
-    tag_classes = {}
-    format = None
+    def __init__(self):
+        self.children = []
+        self.types = {}
 
-    @classmethod
-    def register_tag(cls, subcls):
-        cls.tag_classes[subcls.__name__] = subcls
+    def add_child(self, child):
+        self.children.append(child)
+        self.types.setdefault(child.tag, []).append(child)
 
-    @classmethod
-    def create(cls, tag, *args):
-        cls = cls.tag_classes.get(tag, cls)
-        return cls(tag, *args)
+    def find(self, tag):
+        for child in self.children:
+            if child.tag == tag:
+                yield child
+            if isinstance(child, Parent):
+                for x in child.find(tag):
+                    yield x
 
-    def __init__(self, tag, data, offset=None):
-        self.tag = tag
-        self.data = data
-        self.offset = offset
-        self.unpacked = self.unpack(data)
-        self.value = self.interpret(self.unpacked)
-
-    def pprint(self, _indent):
-        print _indent * '    ' + ('%s; %d bytes' % (self.tag, len(self.data)))
-        print hexdump(self.data, self.offset, indent=(_indent + 1) * '    ').rstrip()
-
-    def unpack(self, data):
-        if self.format:
-            return struct.unpack(self.format, data)
-        else:
-            return None
-
-    def interpret(self, values):
-        return None
-
-    def __repr__(self):
-        return '<%s %r size=%d value=%r>' % (self.__class__.__name__, self.tag, len(self.data), self.value)
+    def find_one(self, tag, *args):
+        for child in self.find(tag):
+            return child
+        if args:
+            return args[0]
+        raise KeyError(tag)
 
 
-@Chunk.register_tag
-class SIZE(Chunk):
-    format = '>L'
-
-    def interpret(self, unpacked):
-        return unpacked[0]
-
-
-@Chunk.register_tag
-class CHNM(Chunk):
-
-    def unpack(self, data):
-        return data
-
-    def interpret(self, data):
-        return data.rstrip('\0')
-
-
-@Chunk.register_tag
-class FBCA(Chunk):
-
-    def unpack(self, data):
-        return struct.unpack('>%sf' % (len(data) / 4), data)
-    def interpret(self, values):
-        return values
-
-
-class Group(object):
+class Group(Parent):
 
     def __init__(self, type_, size, start, tag):
+        super(Group, self).__init__()
 
         self.type = type_
         self.size = size
@@ -121,18 +85,50 @@ class Group(object):
         self.alignment = _get_tag_alignment(self.type)
         self.end = self.start + self.size + _get_padding(self.size, self.alignment)
 
-        self.children = []
-
     def pprint(self, _indent=0):
         print _indent * '    ' + ('%s group (%s); %d bytes for %d children:' % (self.tag, self.type, self.size, len(self.children)))
         for child in self.children:
             child.pprint(_indent=_indent + 1)
 
 
+class Chunk(object):
 
-class Parser(object):
+    def __init__(self, tag, data, offset=None):
+        self.tag = tag
+        self.data = data
+        self.offset = offset
+
+    def pprint(self, _indent):
+        print _indent * '    ' + ('%s; %d bytes' % (self.tag, len(self.data)))
+        print hexdump(self.data, self.offset, indent=(_indent + 1) * '    ').rstrip()
+
+    def __repr__(self):
+        return '<%s %s; %d bytes>' % (self.__class__.__name__, self.tag, len(self.data))
+
+    def _unpack(self, format_char):
+        element_size = struct.calcsize('>' + format_char)
+        if len(self.data) % element_size:
+           raise ValueError('%s is not multiple of %d for %r format' % (len(self.data), element_size, format_char))
+        format_string = '>%d%s' % (len(self.data) / element_size, format_char)
+        unpacked = struct.unpack(format_string, self.data)
+        return array.array(format_char, unpacked)
+
+    def as_ints(self):
+        return self._unpack('L')
+
+    def as_floats(self):
+        return self._unpack('f')
+
+    def as_string(self):
+        return self.data.rstrip('\0')
+
+
+
+class Parser(Parent):
 
     def __init__(self, file):
+        super(Parser, self).__init__()
+
         self._file = file
         self._group_stack = []
         self.children = []
@@ -161,7 +157,7 @@ class Parser(object):
 
             # Add it as a child of the current group.
             group_head = self._group_stack[-1] if self._group_stack else self
-            group_head.children.append(group)
+            group_head.add_child(group)
 
             self._group_stack.append(group)
 
@@ -171,10 +167,10 @@ class Parser(object):
 
             offset = self._file.tell()
             data = self._file.read(size)
-            chunk = Chunk.create(tag, data, offset)
+            chunk = Chunk(tag, data, offset)
 
             assert self._group_stack, 'Data chunk outside of group.'
-            self._group_stack[-1].children.append(chunk)
+            self._group_stack[-1].add_child(chunk)
 
             # Cleanup padding.
             padding = _get_padding(size, self._group_stack[-1].alignment)
@@ -197,6 +193,17 @@ if __name__ == '__main__':
     parser = Parser(open(sys.argv[1]))
     parser.parse_all()
     parser.pprint()
+
+    header = parser.find_one('CACH')
+    s_time = header.find_one('STIM').as_ints()[0]
+    e_time = header.find_one('ETIM').as_ints()[0]
+    print 'Time range: %d to %d' % (s_time, e_time)
+
+    channels = parser.find_one('MYCH')
+    for name, data in zip(channels.find('CHNM'), channels.find('FBCA')):
+        data = data.as_floats()
+        print name.as_string(), len(data)
+
 
 
 
