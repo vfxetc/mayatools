@@ -164,7 +164,6 @@ class Chunk(object):
         self.data = str(v).rstrip('\0') + '\0'
 
 
-
 class Parser(Node):
 
     def __init__(self, file):
@@ -223,9 +222,6 @@ class Parser(Node):
     def parse_all(self):
         while self.parse_next() is not None:
             pass
-
-
-
 
 
 if __name__ == '__main__':
