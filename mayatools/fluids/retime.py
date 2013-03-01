@@ -56,14 +56,21 @@ def main():
 
         frame_a = [f for f in frames if f.start_time <= tick][-1]
         frame_b = next(f for f in frames if f.start_time >= tick)
+
         if frame_a is frame_b:
             new_frame = frame_a
             print 'use %d' % frame_a.start_time
             frame_a.pprint()
         else:
-            print 'interpolate %d from %d and %d' % (tick, frame_a.start_time, frame_b.start_time)
+            blend_factor = float(tick - frame_a.start_time) / float(frame_b.start_time - frame_a.start_time)
+            print 'interpolate %d from %d and %d (via %.3f blend)' % (tick, frame_a.start_time, frame_b.start_time, blend_factor)
             frame_a.pprint()
             frame_b.pprint()
+            for shape_name, shape_a in sorted(frame_a.shapes.iteritems()):
+                shape_b = frame_b.shapes[shape_name]
+
+                new_shape = shape_a.blend_with(shape_b, blend_factor)
+
         print '---'
 
 
