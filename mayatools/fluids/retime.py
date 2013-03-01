@@ -27,6 +27,10 @@ def main():
     cache = Cache(args[0])
     cache.pprint()
 
+    clone = cache.clone()
+    clone.pprint()
+    exit()
+    
     # Load the headers for all the frames, and sort them by time.
     cache.frames.sort(key=lambda f: f.start_time)
     if not cache.frames:
@@ -63,9 +67,9 @@ def main():
             frame_a.pprint()
         else:
             blend_factor = float(tick - frame_a.start_time) / float(frame_b.start_time - frame_a.start_time)
-            print 'interpolate %d from %d and %d (via %.3f blend)' % (tick, frame_a.start_time, frame_b.start_time, blend_factor)
-            frame_a.pprint()
-            frame_b.pprint()
+            #print 'interpolate %d from %d and %d (via %.3f blend)' % (tick, frame_a.start_time, frame_b.start_time, blend_factor)
+            #frame_a.pprint()
+            #frame_b.pprint()
             for shape_name, shape_a in sorted(frame_a.shapes.iteritems()):
                 shape_b = frame_b.shapes[shape_name]
 

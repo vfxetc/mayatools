@@ -1,4 +1,5 @@
 import ast
+import copy
 import os
 import re
 import xml.etree.cElementTree as etree
@@ -13,19 +14,29 @@ class Cache(object):
         'resolutionW', 'resolutionH', 'resolutionD',
     ))
 
-    def __init__(self, xml_path):
+    def __init__(self, xml_path=None):
 
-        self.xml_path = xml_path
-        self.directory = os.path.dirname(self.xml_path)
-        self.base_name = os.path.splitext(os.path.basename(self.xml_path))[0]
-
-        self.parse_xml()
+        self.xml_path = self.directory = self.base_name = None
+        
+        if xml_path:
+            self.set_path(xml_path)
+            self.etree = etree.parse(self.xml_path)
+            self.parse_xml()
 
         self._frames = []
 
-    def parse_xml(self):
+    def set_path(self, xml_path):
+        self.xml_path = os.path.abspath(xml_path)
+        self.directory = os.path.dirname(self.xml_path)
+        self.base_name = os.path.splitext(os.path.basename(self.xml_path))[0]
 
-        self.etree = etree.parse(self.xml_path)
+    def clone(self):
+        clone = self.__class__()
+        clone.etree = copy.deepcopy(self.etree)
+        clone.parse_xml()
+        return clone
+
+    def parse_xml(self):
 
         self.time_per_frame = int(self.etree.find('cacheTimePerFrame').get('TimePerFrame'))
         assert self.time_per_frame == 250, 'Non-standard TimePerFrame'
@@ -285,7 +296,7 @@ class Shape(object):
                 a = self.lookup_value(channel, *centre)
                 b = other.lookup_value(other_channel, *centre)
                 v = tuple(av * blend_inverse + bv * blend_factor for av, bv in zip(a, b))
-                print index, v
+                # print index, v
 
 
         return new
