@@ -1,4 +1,5 @@
-from distutils.core import setup
+from setuptools import setup, find_packages, Extension
+
 
 setup(
     name='mayatools',
@@ -6,7 +7,7 @@ setup(
     description='Collection of general tools and utilities for working in and with Maya.',
     url='https://github.com/westernx/mayatools',
     
-    packages=['mayatools'],
+    packages=find_packages(),
     
     author='Mike Boers',
     author_email='mayatools@mikeboers.com',
@@ -19,5 +20,9 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Python :: 2',
         'Topic :: Software Development :: Libraries :: Python Modules',
+    ],
+
+    ext_modules=[
+        Extension('mayatools.fluids.core', ['mayatools/fluids/core.c']),
     ],
 )

@@ -253,7 +253,12 @@ class Frame(object):
 
         return root.dumps_iter()
 
-class Shape(object):
+cdef class Shape(object):
+    
+    cdef public object frame, cache, spec, channels
+    cdef public object resolution, offset
+    cdef public object bb_min, bb_max
+    cdef public object src_a, src_b
 
     def __init__(self, frame, spec, channels=None):
 
@@ -280,6 +285,8 @@ class Shape(object):
         self.bb_max = tuple(o + r * u / 2.0 for o, r, u in zip(self.offset, self.resolution, self.spec.unit_size))
 
     def iter_centers(self):
+        cdef int xi, yi, zi
+        cdef float x, y, z
         for zi in xrange(self.resolution[2]):
             z = self.bb_min[2] + self.spec.unit_size[2] * (0.5 + zi)
             for yi in xrange(self.resolution[1]):
@@ -288,7 +295,7 @@ class Shape(object):
                     x = self.bb_min[0] + self.spec.unit_size[0] * (0.5 + xi)
                     yield x, y, z
 
-    def index_for_point(self, x, y, z):
+    cpdef index_for_point(self, float x, float y, float z):
 
         if x < self.bb_min[0] or x > self.bb_max[0]:
             raise IndexError('x')
@@ -302,7 +309,7 @@ class Shape(object):
         zi = int((z - self.bb_min[2]) / self.spec.unit_size[2])
         return xi, yi, zi
 
-    def lookup_value(self, channel, x, y, z):
+    cpdef float lookup_value(self, channel, float x, float y, float z):
         
         try:
             xi, yi, zi = self.index_for_point(x, y, z)
