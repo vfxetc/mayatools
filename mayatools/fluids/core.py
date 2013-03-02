@@ -25,6 +25,10 @@ class Cache(object):
 
         self._frames = []
 
+    def free(self):
+        for frame in self._frames:
+            frame.free()
+
     def clone(self):
         clone = self.__class__()
         clone.etree = copy.deepcopy(self.etree)
@@ -158,6 +162,13 @@ class Frame(object):
 
         self._channels = {}
         self._headers = {}
+        self._shapes = {}
+
+    def free(self):
+        self.parser = None
+        for channel in self._channels.itervalues():
+            channel.data = ()
+        self._channels = {}
         self._shapes = {}
 
     def pprint(self):
@@ -320,7 +331,7 @@ class Shape(object):
 
         self.bb_min = tuple(min(a, b) for a, b in zip(shape_a.bb_min, shape_b.bb_min))
         self.bb_max = tuple(max(a, b) for a, b in zip(shape_a.bb_max, shape_b.bb_max))
-        self.resolution = tuple(round((b - a) / shape_a.spec.unit_size[i]) for i, (a, b) in enumerate(zip(self.bb_min, self.bb_max)))
+        self.resolution = tuple(int(round((b - a) / shape_a.spec.unit_size[i])) for i, (a, b) in enumerate(zip(self.bb_min, self.bb_max)))
         self.offset = tuple((a + b) / 2.0 for a, b in zip(self.bb_min, self.bb_max))
 
         # Create basic channels.

@@ -1,5 +1,6 @@
 import math
 import os
+
 from optparse import OptionParser
 
 from .core import Cache, Frame, Shape, Channel
@@ -48,6 +49,9 @@ def main():
         print 'No frames in src_cache.'
         exit(2)
 
+    # Reclaim the file handles.
+    src_cache.free()
+
     # Construct the new src_cache that our frames will go into.
     dst_cache = src_cache.clone()
 
@@ -76,6 +80,8 @@ def main():
     # Isolate the frames requested via src-*.
     frames = [f for f in src_cache.frames if f.start_time >= dst_start and f.end_time <= dst_end]
 
+    previous_frames = []
+
     # Iterate over the requested ticks.
     for dst_time in frange(dst_start, dst_end, sampling_rate):
         src_time = src_start + (src_end - src_start) * (dst_time - dst_start) / (dst_end - dst_start)
@@ -89,6 +95,14 @@ def main():
         # Grab the two frames to blend between.
         frame_a = [f for f in frames if f.start_time <= src_time][-1]
         frame_b = next(f for f in frames if f.start_time >= src_time)
+
+        # Reclaim as much memory as possible.
+        for frame in previous_frames:
+            if frame is frame_a or frame is frame_b:
+                continue
+            else:
+                frame.free()
+        previous_frames = [frame_a, frame_b]
 
         if frame_a is frame_b:
 
