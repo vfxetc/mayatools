@@ -17,7 +17,7 @@ class Cache(object):
     def __init__(self, xml_path=None):
 
         self.xml_path = self.directory = self.base_name = None
-        
+
         if xml_path:
             self.set_path(xml_path)
             self.etree = etree.parse(self.xml_path)
@@ -25,16 +25,16 @@ class Cache(object):
 
         self._frames = []
 
-    def set_path(self, xml_path):
-        self.xml_path = os.path.abspath(xml_path)
-        self.directory = os.path.dirname(self.xml_path)
-        self.base_name = os.path.splitext(os.path.basename(self.xml_path))[0]
-
     def clone(self):
         clone = self.__class__()
         clone.etree = copy.deepcopy(self.etree)
         clone.parse_xml()
         return clone
+
+    def set_path(self, xml_path):
+        self.xml_path = os.path.abspath(xml_path)
+        self.directory = os.path.dirname(self.xml_path)
+        self.base_name = os.path.splitext(os.path.basename(self.xml_path))[0]
 
     def parse_xml(self):
 
@@ -104,6 +104,19 @@ class Cache(object):
 
         return self._frames
 
+    def update_xml(self):
+
+        min_time = min(f.start_time for f in self.frames)
+        max_time = max(f.end_time for f in self.frames)
+        self.etree.find('time').set('Range', '%d-%d' % (min_time, max_time))
+        for channel in self.etree.find('Channels'):
+            channel.set('SamplingType', 'Irregular')
+            channel.set('StartTime', str(min_time))
+            channel.set('EndTime', str(max_time))
+
+    def write_xml(self, path):
+        self.etree.write(path)
+
 
 class ShapeSpec(object):
 
@@ -135,7 +148,7 @@ class ChannelSpec(object):
 
 class Frame(object):
 
-    _header_tags = set(('STIM', 'ETIM', 'VRSN'))
+    _header_tags = set(('STIM', 'ETIM'))
 
     def __init__(self, cache=None, path=None):
 
@@ -179,6 +192,10 @@ class Frame(object):
     def end_time(self):
         return self.headers.get('ETIM')
 
+    def set_times(self, start, end):
+        self.headers['STIM'] = int(start)
+        self.headers['ETIM'] = int(end)
+
     @property
     def channels(self):
         if not self._channels and self.path:
@@ -206,6 +223,24 @@ class Frame(object):
 
         return self._shapes
 
+    def dumps_iter(self):
+        """Prepare all channels and specs for dumping, and then do it."""
+
+        root = binary.Node()
+
+        header = root.add_group('CACH')
+        header.add_chunk('VRSN').string = '0.1'
+        header.add_chunk('STIM').ints = [self.headers['STIM']]
+        header.add_chunk('ETIM').ints = [self.headers['ETIM']]
+
+        channels = root.add_group('MYCH')
+        for interpretation, channel in self.channels.iteritems():
+            channels.add_chunk('CHNM').string = channel.name
+            channels.add_chunk('SIZE').ints = [len(channel.data)]
+            channels.add_chunk('FBCA').floats = channel.data
+            print channel.name, len(channel.data)
+
+        return root.dumps_iter()
 
 class Shape(object):
 
@@ -268,38 +303,58 @@ class Shape(object):
         index = channel.data_size * (xi + (yi * xr) + (zi * xr * yr))
         return channel.data[index:index + channel.data_size]
 
-    def blend_with(self, other, blend_factor):
+    @classmethod
+    def setup_blend(cls, frame, name, shape_a, shape_b):
 
-        blend_inverse = 1 - blend_factor
+        self = cls(frame, frame.cache.shape_specs[name])
+        frame._shapes[name] = self
 
-        new = self.__class__(self.frame, self.spec, {})
-        new.bb_min = tuple(min(a, b) for a, b in zip(self.bb_min, other.bb_min))
-        new.bb_max = tuple(max(a, b) for a, b in zip(self.bb_max, other.bb_max))
-        new.resolution = tuple(round((b - a) / self.spec.unit_size[i]) for i, (a, b) in enumerate(zip(new.bb_min, new.bb_max)))
-        new.offset = tuple((a + b) / 2.0 for a, b in zip(new.bb_min, new.bb_max))
 
-        print 'bb_min:', new.bb_min
-        print 'bb_max:', new.bb_max
-        print 'offset:', new.offset
-        print 'resolution:', new.resolution
+        if isinstance(shape_a, Frame):
+            shape_a = shape_a.shapes[name]
+        if isinstance(shape_b, Frame):
+            shape_b = shape_b.shapes[name]
 
-        for interpretation, channel in sorted(self.channels.iteritems()):
+        self.src_a = shape_a
+        self.src_b = shape_b
 
-            if not channel.data_size:
+        self.bb_min = tuple(min(a, b) for a, b in zip(shape_a.bb_min, shape_b.bb_min))
+        self.bb_max = tuple(max(a, b) for a, b in zip(shape_a.bb_max, shape_b.bb_max))
+        self.resolution = tuple(round((b - a) / shape_a.spec.unit_size[i]) for i, (a, b) in enumerate(zip(self.bb_min, self.bb_max)))
+        self.offset = tuple((a + b) / 2.0 for a, b in zip(self.bb_min, self.bb_max))
+
+        # Create basic channels.
+        self.channels['resolution'] = Channel(self.frame, name + '_resolution', self.resolution)
+        self.channels['offset'] = Channel(self.frame, name + '_offset', self.offset)
+
+        return self
+
+    def blend(self, blend_factor):
+
+        blend_factor_inv = 1.0 - blend_factor
+
+        shape_a = self.src_a
+        lookup_a = shape_a.lookup_value
+        shape_b = self.src_b
+        lookup_b = shape_b.lookup_value
+
+        for interpretation, a_channel in sorted(shape_a.channels.iteritems()):
+
+            if not a_channel.data_size:
                 continue
-            other_channel = other.channels[interpretation]
 
-            print 'blend', interpretation
-            for centre in new.iter_centers():
-                index = new.index_for_point(*centre)
+            b_channel = shape_b.channels[interpretation]
 
-                a = self.lookup_value(channel, *centre)
-                b = other.lookup_value(other_channel, *centre)
-                v = tuple(av * blend_inverse + bv * blend_factor for av, bv in zip(a, b))
-                # print index, v
+            data = []
+            dst_channel = Channel(self.frame, self.spec.name + '_' + interpretation, data)
+            self.channels[interpretation] = dst_channel
 
-
-        return new
+            print '\t\tblend', interpretation
+            for centre in self.iter_centers():
+                index = self.index_for_point(*centre)
+                a = lookup_a(a_channel, *centre)
+                b = lookup_b(b_channel, *centre)
+                data.extend(av * blend_factor_inv + bv * blend_factor for av, bv in zip(a, b))
 
 
 class Channel(object):
@@ -314,7 +369,8 @@ class Channel(object):
 
         self.shape = self.frame._shapes[self.spec.shape]
         self.shape.channels[self.spec.interpretation] = self
-
+        self.frame.channels[name] = self
+        
         self.interpretation = self.spec.interpretation
         self.data_size = {
             'density': 1,

@@ -56,6 +56,13 @@ class Node(object):
         self.children.append(child)
         self.types.setdefault(child.tag, []).append(child)
         child.parent = self
+        return child
+
+    def add_group(self, *args, **kwargs):
+        return self.add_child(Group(*args, **kwargs))
+
+    def add_chunk(self, *args, **kwargs):
+        return self.add_child(Chunk(*args, **kwargs))
 
     def find(self, tag):
         for child in self.children:
@@ -146,6 +153,10 @@ class Chunk(object):
     @property
     def ints(self):
         return self._unpack('L')
+
+    @ints.setter
+    def ints(self, values):
+        self._pack('L', values)
 
     @property
     def floats(self):
