@@ -33,6 +33,7 @@ def main():
     option_parser.add_option('-r', '--rate', type='float', default=1.0)
     option_parser.add_option('-v', '--verbose', action='count', default=0)
     option_parser.add_option('-f', '--farm', action='store_true')
+    option_parser.add_option('-w', '--workers', type='int', default=20)
     opts, args = option_parser.parse_args()
 
     if len(args) != 2:
@@ -100,7 +101,7 @@ def main():
     dst_cache.write_xml(dst_path)
 
     if opts.farm:
-        executor = qbfutures.Executor(cpus=20, groups='farm', reservations='host.processors=1')
+        executor = qbfutures.Executor(cpus=opts.workers, groups='farm', reservations='host.processors=1')
         with executor.batch(name='Retime Fluid:%s:%s' % (os.path.basename(src_cache.directory), src_cache.shape_specs.keys()[0])) as batch:
 
             for src_time, dst_time in iter_ticks(src_start, src_end, dst_start, dst_end, sampling_rate):
