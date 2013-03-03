@@ -108,10 +108,7 @@ class Cache(object):
 
         return self._frames
 
-    def update_xml(self):
-
-        min_time = min(f.start_time for f in self.frames)
-        max_time = max(f.end_time for f in self.frames)
+    def update_xml(self, min_time, max_time):
         self.etree.find('time').set('Range', '%d-%d' % (min_time, max_time))
         for channel in self.etree.find('Channels'):
             channel.set('SamplingType', 'Irregular')
@@ -164,8 +161,13 @@ class Frame(object):
         self._headers = {}
         self._shapes = {}
 
+    def close(self):
+        if self.parser:
+            self.parser.close()
+            self.parser = None
+
     def free(self):
-        self.parser = None
+        self.close()
         for channel in self._channels.itervalues():
             channel.data = ()
         self._channels = {}

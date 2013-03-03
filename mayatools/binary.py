@@ -184,6 +184,9 @@ class Parser(Node):
         self._group_stack = []
         self.children = []
 
+    def close(self):
+        self._file.close()
+
     def pprint(self, _indent=-1):
         for child in self.children:
             child.pprint(_indent=_indent + 1)
