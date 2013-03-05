@@ -40,7 +40,35 @@ def main():
         option_parser.print_usage()
         exit(1)
 
-    dst_path = os.path.abspath(args[1])
+
+    res = schedule_retime(*args,
+        src_start=opts.src_time,
+        src_end=opts.src_end,
+        dst_start=opts.start,
+        dst_end=opts.end,
+        sampling_rate=opts.rate,
+        verbose=opts.verbose,
+        farm=opts.farm,
+        workers=opts.workers
+    )
+
+    if opts.farm:
+        print 'Qube job ID', res
+
+
+def schedule_retime(
+    src_path, dst_path,
+    src_start=None, src_end=None,
+    dst_start=None, dst_end=None,
+    sampling_rate=1.0,
+    farm=True,
+    workers=20,
+    verbose=0
+):
+
+    dst_path = os.path.abspath(dst_path)
+    src_path = os.path.abspath(src_path)
+
     dst_base_name, dst_ext = os.path.splitext(dst_path)
     if dst_ext != '.xml':
         option_parser.print_usage()
@@ -49,8 +77,8 @@ def main():
     if not os.path.exists(dst_directory):
         os.makedirs(dst_directory)
 
-    src_cache = Cache(args[0])
-    if opts.verbose >= 2:
+    src_cache = Cache(src_path)
+    if verbose >= 2:
         src_cache.pprint()
 
 
@@ -72,26 +100,26 @@ def main():
     dst_base_path = os.path.join(dst_directory, dst_base_name)
 
     # Convert all time options into an integer of ticks.
-    if opts.start is None:
+    if dst_start is None:
         dst_start = dst_cache.frames[0].start_time
     else:
-        dst_start = int(opts.start * dst_cache.time_per_frame)
-    if opts.end is None:
+        dst_start = int(dst_start * dst_cache.time_per_frame)
+    if dst_end is None:
         dst_end = dst_cache.frames[-1].end_time
     else:
-        dst_end = int(opts.end * dst_cache.time_per_frame)
+        dst_end = int(dst_end * dst_cache.time_per_frame)
 
-    if opts.src_start is None:
+    if src_start is None:
         src_start = dst_start
     else:
-        src_start = int(opts.src_start * src_cache.time_per_frame)
-    if opts.src_end is None:
+        src_start = int(src_start * src_cache.time_per_frame)
+    if src_end is None:
         src_end = dst_end
     else:
-        src_end = int(opts.src_end * src_cache.time_per_frame)
+        src_end = int(src_end * src_cache.time_per_frame)
 
     # This one remains a float.
-    sampling_rate = opts.rate * src_cache.time_per_frame
+    sampling_rate = sampling_rate * src_cache.time_per_frame
 
     # Isolate the frames requested via src-*.
     frames = [f for f in frame_times if f[0] >= dst_start and f[0] <= dst_end]
@@ -100,8 +128,8 @@ def main():
     dst_cache.update_xml(dst_start, dst_end)
     dst_cache.write_xml(dst_path)
 
-    if opts.farm:
-        executor = qbfutures.Executor(cpus=opts.workers, groups='farm', reservations='host.processors=1')
+    if farm:
+        executor = qbfutures.Executor(cpus=workers, groups='farm', reservations='host.processors=1')
         with executor.batch(name='Retime Fluid:%s:%s' % (os.path.basename(src_cache.directory), src_cache.shape_specs.keys()[0])) as batch:
 
             for src_time, dst_time in iter_ticks(src_start, src_end, dst_start, dst_end, sampling_rate):
@@ -112,8 +140,7 @@ def main():
                     args=[src_cache.xml_path, src_time, dst_time, frame_a_path, frame_b_path, dst_base_path],
                     name='Blend %d from %d' % (dst_time, src_time),
                 )
-        print 'Submitted job %d' % batch.futures[0].job_id
-        return
+        return batch.futures[0].job_id
 
 
     # Iterate over the requested ticks.
