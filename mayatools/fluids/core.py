@@ -343,31 +343,33 @@ class Shape(object):
         return self
 
     def blend(self, blend_factor):
+        for interpretation in self.src_a.channels:
+            self.blend_channel(interpretation, blend_factor)
+
+    def blend_channel(self, interpretation, blend_factor):
 
         blend_factor_inv = 1.0 - blend_factor
 
-        shape_a = self.src_a
-        lookup_a = shape_a.lookup_value
-        shape_b = self.src_b
-        lookup_b = shape_b.lookup_value
+        a_channel = self.src_a.channels[interpretation]
+        b_channel = self.src_b.channels[interpretation]
 
-        for interpretation, a_channel in sorted(shape_a.channels.iteritems()):
+        # For those channels that we don't know how to deal with.
+        if not a_channel.data_size:
+            return
 
-            if not a_channel.data_size:
-                continue
+        lookup_a = self.src_a.lookup_value
+        lookup_b = self.src_b.lookup_value
 
-            b_channel = shape_b.channels[interpretation]
+        data = []
+        dst_channel = Channel(self.frame, self.spec.name + '_' + interpretation, data)
+        self.channels[interpretation] = dst_channel
 
-            data = []
-            dst_channel = Channel(self.frame, self.spec.name + '_' + interpretation, data)
-            self.channels[interpretation] = dst_channel
-
-            print '\t\tblend', interpretation
-            for centre in self.iter_centers():
-                index = self.index_for_point(*centre)
-                a = lookup_a(a_channel, *centre)
-                b = lookup_b(b_channel, *centre)
-                data.extend(av * blend_factor_inv + bv * blend_factor for av, bv in zip(a, b))
+        print '\t\tblend', interpretation
+        for centre in self.iter_centers():
+            index = self.index_for_point(*centre)
+            a = lookup_a(a_channel, *centre)
+            b = lookup_b(b_channel, *centre)
+            data.extend(av * blend_factor_inv + bv * blend_factor for av, bv in zip(a, b))
 
 
 class Channel(object):

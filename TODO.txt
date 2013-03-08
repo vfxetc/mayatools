@@ -1,4 +1,4 @@
-Fluid Retiming
+Fluids
 --------------
 
 - may need to advect the two frames and then do a linear blend on them
@@ -6,6 +6,36 @@ Fluid Retiming
   - google for "fluid advect c++"
   - two step? http://code.google.com/p/fluidic/source/browse/trunk/Resources/Advect.cg?r=15
   - do this at the very end
+
+- How is velocity laid out?
+    It is on the surfaces bettween voxels.
+
+    Test to set velocities: 
+        for x in range(3):
+            for y in range(5):
+                for z in range(7):
+                    cmds.setFluidAttr(at='density', xi=x, yi=y, zi=z, fv=(x + y + z))
+                    cmds.setFluidAttr(at='velocity', xi=x, yi=y, zi=z, vv=(x + 1, y + 1, z + 1))
+
+    Duncan says:
+        Velocity is defined at voxel boundaries, not the centers (it takes a little thinking to appreciate this fully). Thus for a 10x10x10 grid the velocityX grid will be (11,10,10), the velocityY(10,11,10) and the velocityZ(10,10,11).
+
+    The API docs also clarify quite well:
+        http://download.autodesk.com/us/maya/2011help/API/class_m_fn_fluid.html#0ae37ed733007e9eb82dbe2231335293
+
+    Looking at the raw data set via cmds.setFluidAttr(..., lowerFace=True), the X values go (0, 1, 2, 2), the Y (0, 1, 2, 3, 4, 4),
+    and the Z do the same. They also iterate in the same Z,Y,X order that the density does.
+
+- Tests:
+    densities:
+        - set density to X/Y/Z coordinate + 1
+    densities/combined.mc
+        - set density to (x * 100 + y * 10 + z)
+    fluid-velocities-1:
+        - set density to x/y/z coordinate + 1
+        - set velocity to (1, 0, 0) for X
+        - does not use lowerFace for velocity
+        - combined -> cmds.setFluidAttr(at='velocity', xi=x, yi=y, zi=z, vv=(x, y, z), lowerFace=True)
 
 
 General
