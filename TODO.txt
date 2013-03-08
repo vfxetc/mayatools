@@ -1,4 +1,15 @@
+Fluid Retiming
+--------------
 
+- may need to advect the two frames and then do a linear blend on them
+  - see Wikipedia for the hairy math http://en.wikipedia.org/wiki/Advection
+  - google for "fluid advect c++"
+  - two step? http://code.google.com/p/fluidic/source/browse/trunk/Resources/Advect.cg?r=15
+  - do this at the very end
+
+
+General
+-------
 
 - context.parent
 - context.progress as p

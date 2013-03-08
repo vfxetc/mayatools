@@ -42,7 +42,7 @@ def main():
 
 
     res = schedule_retime(*args,
-        src_start=opts.src_time,
+        src_start=opts.src_start,
         src_end=opts.src_end,
         dst_start=opts.start,
         dst_end=opts.end,
