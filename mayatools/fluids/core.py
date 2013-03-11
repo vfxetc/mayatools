@@ -1,6 +1,7 @@
 import ast
 import copy
 import itertools
+import math
 import os
 import re
 import xml.etree.cElementTree as etree
@@ -303,45 +304,56 @@ class Shape(object):
         return x, y, z
 
     def data_index(self, channel, xi, yi, zi):
+
+        xi = int(math.floor(xi))
         xr = int(self.resolution[0])
         if xi < 0 or xi >= xr:
             raise ValueError('x')
+
+        yi = int(math.floor(yi))
         yr = int(self.resolution[1])
         if yi < 0 or yi >= yr:
             raise ValueError('y')
+
+        zi = int(math.floor(zi))
         zr = int(self.resolution[2])
         if zi < 0 or zi >= zr:
             raise ValueError('z')
+
         return channel.data_size * (xi + (yi * xr) + (zi * xr * yr))
 
-    def lookup_value(self, channel, x, y, z, interp=False):
+    def lookup_value(self, channel, x, y, z, interp=True):
         
-        # It is easier for me if the values are at the vertices, instead
-        # of at the centers.
-        if False and interp:
-            x -= 0.5 * self.spec.unit_size[0]
-            y -= 0.5 * self.spec.unit_size[1]
-            z -= 0.5 * self.spec.unit_size[2]
+        x -= 0.5 * self.spec.unit_size[0]
+        y -= 0.5 * self.spec.unit_size[1]
+        z -= 0.5 * self.spec.unit_size[2]
 
-        xi, yi, zi = self.index_for_point(x, y, z)
+        # Get floating index relative to center of voxel.
+        xf = (x - self.bb_min[0]) / self.spec.unit_size[0]
+        yf = (y - self.bb_min[1]) / self.spec.unit_size[1]
+        zf = (z - self.bb_min[2]) / self.spec.unit_size[2]
 
         if not interp:
             try:
-                index = self.data_index(channel, xi, yi, zi)
+                index = self.data_index(channel, xf, yf, zf)
             except ValueError:
                 return (0.0, ) * channel.data_size
             return channel.data[index:index + channel.data_size]
 
-        # The corner of the box.
-        xc = self.bb_min[0] + self.spec.unit_size[0] * (xi + 0.5)
-        yc = self.bb_min[1] + self.spec.unit_size[1] * (yi + 0.5)
-        zc = self.bb_min[2] + self.spec.unit_size[2] * (zi + 0.5)
+        # The center of the box (in center coords)
+        xc = self.bb_min[0] + self.spec.unit_size[0] * math.floor(xf)
+        yc = self.bb_min[1] + self.spec.unit_size[1] * math.floor(yf)
+        zc = self.bb_min[2] + self.spec.unit_size[2] * math.floor(zf)
 
         # Collect the 8 bounding values.
         values = []
-        for xi, yi, zi in itertools.product((xi, xi + 1), (yi, yi + 1), (zi, zi + 1)):
+        for xb, yb, zb in itertools.product(
+            (xf, xf + 1),
+            (yf, yf + 1),
+            (zf, zf + 1),
+        ):
             try:
-                index = self.data_index(channel, xi, yi, zi)
+                index = self.data_index(channel, xb, yb, zb)
             except ValueError:
                 value = (0.0, ) * channel.data_size
             else:
@@ -353,16 +365,20 @@ class Shape(object):
             (y, yc, self.spec.unit_size[1]),
             (x, xc, self.spec.unit_size[0]),
         ):
+            blend = (coord - corner) / unit
+            #print blend
+            #blend = min(1, max(0, blend))
+            if not 0 <= blend <= 1:
+                print coord, corner, unit, '->', blend
+                raise ValueError('bad')
+            blend_inv = 1 - blend
+
             old_values = values
             values = []
             for low_i in xrange(0, len(old_values), 2):
-                blend = (corner - coord) / unit
-                blend = min(1, max(0, blend))
-                assert 0<=blend<=1, blend
-                blend_inv = 1 - blend
                 a_value = old_values[low_i]
                 b_value = old_values[low_i + 1]
-                value = tuple(a * blend + b * blend_inv for a, b in zip(a_value, b_value))
+                value = tuple(a * blend_inv + b * blend for a, b in zip(a_value, b_value))
                 values.append(value)
         return values[0]
 
