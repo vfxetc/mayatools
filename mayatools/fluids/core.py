@@ -292,9 +292,9 @@ class Shape(object):
                     yield x, y, z
 
     def index_for_point(self, x, y, z):
-        xi = int((x - self.bb_min[0]) / self.spec.unit_size[0])
-        yi = int((y - self.bb_min[1]) / self.spec.unit_size[1])
-        zi = int((z - self.bb_min[2]) / self.spec.unit_size[2])
+        xi = int(math.floor((x - self.bb_min[0]) / self.spec.unit_size[0]))
+        yi = int(math.floor((y - self.bb_min[1]) / self.spec.unit_size[1]))
+        zi = int(math.floor((z - self.bb_min[2]) / self.spec.unit_size[2]))
         return xi, yi, zi
 
     def point_for_index(self, xi, yi, zi):
@@ -367,10 +367,10 @@ class Shape(object):
         ):
             blend = (coord - corner) / unit
             #print blend
-            #blend = min(1, max(0, blend))
-            if not 0 <= blend <= 1:
-                print coord, corner, unit, '->', blend
-                raise ValueError('bad')
+            blend = min(1, max(0, blend))
+            # if not 0 <= blend <= 1:
+                # print coord, corner, unit, '->', blend
+                # raise ValueError('bad')
             blend_inv = 1 - blend
 
             old_values = values
@@ -386,20 +386,28 @@ class Shape(object):
 
     def lookup_velocity(self, channel, x, y, z):
 
-        try:
-            xi, yi, zi = self.index_for_point(x, y, z)
-        except IndexError:
-            return (0.0, ) * channel.data_size
-
+        xi, yi, zi = self.index_for_point(x, y, z)
         xr = int(self.resolution[0])
         yr = int(self.resolution[1])
         zr = int(self.resolution[2])
+
+        if xi < 0 or xi >= xr:
+            return (0.0, ) * 3
+        if yi < 0 or yi >= yr:
+            return (0.0, ) * 3
+        if zi < 0 or zi >= zr:
+            return (0.0, ) * 3
+
         data_indices = (
-            xi + ( yi      * (xr + 1)) + ( zi      * (xr + 1) *  yr     ),
-            xi + ((yi + 1) *  xr     ) + ( zi      *  xr      * (yr + 1)) + ((xr + 1) * yr * zr),
-            xi + ( yi      *  xr     ) + ((zi + 1) *  xr      *  yr     ) + ((xr + 1) * yr * zr) + (xr * (yr + 1) * zr),
+            xi + (yi * (xr + 1)) + (zi * (xr + 1) *  yr     ),
+            xi + (yi *  xr     ) + (zi *  xr      * (yr + 1)) + ((xr + 1) * yr * zr),
+            xi + (yi *  xr     ) + (zi *  xr      *  yr     ) + ((xr + 1) * yr * zr) + (xr * (yr + 1) * zr),
         )
-        return tuple(channel.data[i] for i in data_indices)
+        try:
+            return tuple(channel.data[i] for i in data_indices)
+        except IndexError:
+            print len(channel.data), data_indices
+            raise
 
     @classmethod
     def setup_blend(cls, frame, name, shape_a, shape_b):
