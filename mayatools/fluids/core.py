@@ -1,5 +1,6 @@
 import ast
 import copy
+import itertools
 import os
 import re
 import xml.etree.cElementTree as etree
@@ -290,30 +291,82 @@ class Shape(object):
                     yield x, y, z
 
     def index_for_point(self, x, y, z):
-
-        if x < self.bb_min[0] or x > self.bb_max[0]:
-            raise IndexError('x')
-        if y < self.bb_min[1] or y > self.bb_max[1]:
-            raise IndexError('y')
-        if z < self.bb_min[2] or z > self.bb_max[2]:
-            raise IndexError('z')
-
         xi = int((x - self.bb_min[0]) / self.spec.unit_size[0])
         yi = int((y - self.bb_min[1]) / self.spec.unit_size[1])
         zi = int((z - self.bb_min[2]) / self.spec.unit_size[2])
         return xi, yi, zi
 
-    def lookup_value(self, channel, x, y, z):
-        
-        try:
-            xi, yi, zi = self.index_for_point(x, y, z)
-        except IndexError:
-            return (0.0, ) * channel.data_size
+    def point_for_index(self, xi, yi, zi):
+        x = self.bb_min[0] + self.spec.unit_size[0] * (0.5 + xi)
+        y = self.bb_min[1] + self.spec.unit_size[1] * (0.5 + yi)
+        z = self.bb_min[2] + self.spec.unit_size[2] * (0.5 + zi)
+        return x, y, z
 
+    def data_index(self, channel, xi, yi, zi):
         xr = int(self.resolution[0])
+        if xi < 0 or xi >= xr:
+            raise ValueError('x')
         yr = int(self.resolution[1])
-        index = channel.data_size * (xi + (yi * xr) + (zi * xr * yr))
-        return channel.data[index:index + channel.data_size]
+        if yi < 0 or yi >= yr:
+            raise ValueError('y')
+        zr = int(self.resolution[2])
+        if zi < 0 or zi >= zr:
+            raise ValueError('z')
+        return channel.data_size * (xi + (yi * xr) + (zi * xr * yr))
+
+    def lookup_value(self, channel, x, y, z, interp=False):
+        
+        # It is easier for me if the values are at the vertices, instead
+        # of at the centers.
+        if False and interp:
+            x -= 0.5 * self.spec.unit_size[0]
+            y -= 0.5 * self.spec.unit_size[1]
+            z -= 0.5 * self.spec.unit_size[2]
+
+        xi, yi, zi = self.index_for_point(x, y, z)
+
+        if not interp:
+            try:
+                index = self.data_index(channel, xi, yi, zi)
+            except ValueError:
+                return (0.0, ) * channel.data_size
+            return channel.data[index:index + channel.data_size]
+
+        # The corner of the box.
+        xc = self.bb_min[0] + self.spec.unit_size[0] * (xi + 0.5)
+        yc = self.bb_min[1] + self.spec.unit_size[1] * (yi + 0.5)
+        zc = self.bb_min[2] + self.spec.unit_size[2] * (zi + 0.5)
+
+        # Collect the 8 bounding values.
+        values = []
+        for xi, yi, zi in itertools.product((xi, xi + 1), (yi, yi + 1), (zi, zi + 1)):
+            try:
+                index = self.data_index(channel, xi, yi, zi)
+            except ValueError:
+                value = (0.0, ) * channel.data_size
+            else:
+                value = channel.data[index:index + channel.data_size]
+            values.append(value)
+
+        for coord, corner, unit in (
+            (z, zc, self.spec.unit_size[2]),
+            (y, yc, self.spec.unit_size[1]),
+            (x, xc, self.spec.unit_size[0]),
+        ):
+            old_values = values
+            values = []
+            for low_i in xrange(0, len(old_values), 2):
+                blend = (corner - coord) / unit
+                blend = min(1, max(0, blend))
+                assert 0<=blend<=1, blend
+                blend_inv = 1 - blend
+                a_value = old_values[low_i]
+                b_value = old_values[low_i + 1]
+                value = tuple(a * blend + b * blend_inv for a, b in zip(a_value, b_value))
+                values.append(value)
+        return values[0]
+
+
 
     def lookup_velocity(self, channel, x, y, z):
 
