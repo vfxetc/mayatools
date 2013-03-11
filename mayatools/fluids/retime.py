@@ -34,6 +34,7 @@ def main():
     option_parser.add_option('-v', '--verbose', action='count', default=0)
     option_parser.add_option('-f', '--farm', action='store_true')
     option_parser.add_option('-w', '--workers', type='int', default=20)
+    option_parser.add_option('-a', '--advect', action='store_true')
     opts, args = option_parser.parse_args()
 
     if len(args) != 2:
@@ -49,7 +50,8 @@ def main():
         sampling_rate=opts.rate,
         verbose=opts.verbose,
         farm=opts.farm,
-        workers=opts.workers
+        workers=opts.workers,
+        advect=opts.advect
     )
 
     if opts.farm:
@@ -63,7 +65,8 @@ def schedule_retime(
     sampling_rate=1.0,
     farm=True,
     workers=20,
-    verbose=0
+    verbose=0,
+    advect=True,
 ):
 
     dst_path = os.path.abspath(dst_path)
@@ -137,7 +140,7 @@ def schedule_retime(
                 frame_b_path = next(f[1] for f in frame_times if f[0] >= src_time)
                 batch.submit_ext(
                     func='mayatools.fluids.retime:blend_one_on_farm',
-                    args=[src_cache.xml_path, src_time, dst_time, frame_a_path, frame_b_path, dst_base_path],
+                    args=[src_cache.xml_path, src_time, dst_time, frame_a_path, frame_b_path, dst_base_path, advect],
                     name='Blend %d from %d' % (dst_time, src_time),
                 )
         return batch.futures[0].job_id
@@ -147,11 +150,11 @@ def schedule_retime(
     for src_time, dst_time in iter_ticks(src_start, src_end, dst_start, dst_end, sampling_rate):
         frame_a_path = [f[1] for f in frame_times if f[0] <= src_time][-1]
         frame_b_path = next(f[1] for f in frame_times if f[0] >= src_time)
-        blend_one_on_farm(src_cache.xml_path, src_time, dst_time, frame_a_path, frame_b_path, dst_base_path)
+        blend_one_on_farm(src_cache.xml_path, src_time, dst_time, frame_a_path, frame_b_path, dst_base_path, advect)
 
 
 
-def blend_one_on_farm(cache, src_time, dst_time, frame_a, frame_b, dst_base_path):
+def blend_one_on_farm(cache, src_time, dst_time, frame_a, frame_b, dst_base_path, advect):
 
     if isinstance(cache, basestring):
         cache = Cache(cache)
@@ -171,7 +174,7 @@ def blend_one_on_farm(cache, src_time, dst_time, frame_a, frame_b, dst_base_path
         blend_factor = float(src_time - frame_a.start_time) / float(frame_b.start_time - frame_a.start_time)
         for shape_name, shape_a in sorted(frame_a.shapes.iteritems()):
             dst_shape = Shape.setup_blend(dst_frame, shape_name, frame_a, frame_b)
-            dst_shape.blend(blend_factor)
+            dst_shape.blend(blend_factor, advect)
 
     frame_no, tick = divmod(dst_time, cache.time_per_frame)
     if tick:

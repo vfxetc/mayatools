@@ -251,7 +251,6 @@ class Frame(object):
             channels.add_chunk('CHNM').string = channel.name
             channels.add_chunk('SIZE').ints = [len(channel.data)]
             channels.add_chunk('FBCA').floats = channel.data
-            print channel.name, len(channel.data)
 
         return root.dumps_iter()
 
@@ -316,6 +315,23 @@ class Shape(object):
         index = channel.data_size * (xi + (yi * xr) + (zi * xr * yr))
         return channel.data[index:index + channel.data_size]
 
+    def lookup_velocity(self, channel, x, y, z):
+
+        try:
+            xi, yi, zi = self.index_for_point(x, y, z)
+        except IndexError:
+            return (0.0, ) * channel.data_size
+
+        xr = int(self.resolution[0])
+        yr = int(self.resolution[1])
+        zr = int(self.resolution[2])
+        data_indices = (
+            xi + ( yi      * (xr + 1)) + ( zi      * (xr + 1) *  yr     ),
+            xi + ((yi + 1) *  xr     ) + ( zi      *  xr      * (yr + 1)) + ((xr + 1) * yr * zr),
+            xi + ( yi      *  xr     ) + ((zi + 1) *  xr      *  yr     ) + ((xr + 1) * yr * zr) + (xr * (yr + 1) * zr),
+        )
+        return tuple(channel.data[i] for i in data_indices)
+
     @classmethod
     def setup_blend(cls, frame, name, shape_a, shape_b):
 
@@ -331,6 +347,7 @@ class Shape(object):
         self.src_a = shape_a
         self.src_b = shape_b
 
+        # The bounds of this new shape must contain the bounds of both sources.
         self.bb_min = tuple(min(a, b) for a, b in zip(shape_a.bb_min, shape_b.bb_min))
         self.bb_max = tuple(max(a, b) for a, b in zip(shape_a.bb_max, shape_b.bb_max))
         self.resolution = tuple(int(round((b - a) / shape_a.spec.unit_size[i])) for i, (a, b) in enumerate(zip(self.bb_min, self.bb_max)))
@@ -342,33 +359,38 @@ class Shape(object):
 
         return self
 
-    def blend(self, blend_factor):
+    def blend(self, blend_factor, advect=True):
+        has_vel = 'velocity' in self.src_a.channels
         for interpretation in self.src_a.channels:
-            self.blend_channel(interpretation, blend_factor)
+            if interpretation in ('density', ):
+                self.blend_channel(interpretation, blend_factor, advect=advect and has_vel)
 
-    def blend_channel(self, interpretation, blend_factor):
+    def blend_channel(self, interpretation, blend_factor, advect=False):
 
         blend_factor_inv = 1.0 - blend_factor
 
         a_channel = self.src_a.channels[interpretation]
         b_channel = self.src_b.channels[interpretation]
 
-        # For those channels that we don't know how to deal with.
-        if not a_channel.data_size:
-            return
-
         lookup_a = self.src_a.lookup_value
         lookup_b = self.src_b.lookup_value
+
+        if advect:
+            lookup_vel_a = lambda x, y, z, channel=self.src_a.channels['velocity'], lookup=self.src_a.lookup_velocity: lookup(channel, x, y, z)
+            lookup_vel_b = lambda x, y, z, channel=self.src_b.channels['velocity'], lookup=self.src_b.lookup_velocity: lookup(channel, x, y, z)
 
         data = []
         dst_channel = Channel(self.frame, self.spec.name + '_' + interpretation, data)
         self.channels[interpretation] = dst_channel
 
-        print '\t\tblend', interpretation
+        print '\t\tblending', interpretation
         for centre in self.iter_centers():
-            index = self.index_for_point(*centre)
-            a = lookup_a(a_channel, *centre)
-            b = lookup_b(b_channel, *centre)
+            centre_a = centre_b = centre
+            if advect:
+                centre_a = tuple(coord - blend_factor     * vel / 24 for coord, vel in zip(centre_a, lookup_vel_a(*centre)))
+                centre_b = tuple(coord + blend_factor_inv * vel / 24 for coord, vel in zip(centre_b, lookup_vel_b(*centre)))
+            a = lookup_a(a_channel, *centre_a)
+            b = lookup_b(b_channel, *centre_b)
             data.extend(av * blend_factor_inv + bv * blend_factor for av, bv in zip(a, b))
 
 
