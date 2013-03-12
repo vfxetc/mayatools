@@ -359,13 +359,13 @@ class Shape(object):
 
         return self
 
-    def blend(self, blend_factor, advect=True):
+    def blend(self, blend_factor, advect=1.0):
         has_vel = 'velocity' in self.src_a.channels
         for interpretation in self.src_a.channels:
             if interpretation in ('density', ):
-                self.blend_channel(interpretation, blend_factor, advect=advect and has_vel)
+                self.blend_channel(interpretation, blend_factor, advect=advect if has_vel else 0)
 
-    def blend_channel(self, interpretation, blend_factor, advect=False):
+    def blend_channel(self, interpretation, blend_factor, advect=0):
 
         blend_factor_inv = 1.0 - blend_factor
 
@@ -376,6 +376,9 @@ class Shape(object):
         lookup_b = self.src_b.lookup_value
 
         if advect:
+            if not isinstance(advect, float):
+                advect = 1.0
+            advect_scale = advect * (self.src_b.frame.start_time - self.src_a.frame.end_time) / self.cache.time_per_frame
             lookup_vel_a = lambda x, y, z, channel=self.src_a.channels['velocity'], lookup=self.src_a.lookup_velocity: lookup(channel, x, y, z)
             lookup_vel_b = lambda x, y, z, channel=self.src_b.channels['velocity'], lookup=self.src_b.lookup_velocity: lookup(channel, x, y, z)
 
@@ -387,8 +390,8 @@ class Shape(object):
         for centre in self.iter_centers():
             centre_a = centre_b = centre
             if advect:
-                centre_a = tuple(coord - blend_factor     * vel / 24 for coord, vel in zip(centre_a, lookup_vel_a(*centre)))
-                centre_b = tuple(coord + blend_factor_inv * vel / 24 for coord, vel in zip(centre_b, lookup_vel_b(*centre)))
+                centre_a = tuple(coord - blend_factor     * vel * advect_scale for coord, vel in zip(centre_a, lookup_vel_a(*centre)))
+                centre_b = tuple(coord + blend_factor_inv * vel * advect_scale for coord, vel in zip(centre_b, lookup_vel_b(*centre)))
             a = lookup_a(a_channel, *centre_a)
             b = lookup_b(b_channel, *centre_b)
             data.extend(av * blend_factor_inv + bv * blend_factor for av, bv in zip(a, b))

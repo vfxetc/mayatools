@@ -108,8 +108,10 @@ class RetimeUI(object):
         layout.addStretch()
         opts.layout().addLayout(layout)
 
-        self.advect = QtGui.QCheckBox("Advect", checked=True)
-        opts.layout().addWidget(self.advect)
+        self.advect = QtGui.QDoubleSpinBox(value=0.5)
+        layout = hbox('Advection Scale', self.advect)
+        layout.addStretch()
+        opts.layout().addLayout(layout)
 
         self.buttonRow = QtGui.QHBoxLayout()
         self.buttonRow.addStretch()
@@ -208,7 +210,7 @@ class Dialog(QtGui.QDialog):
             sampling_rate=self.ui.samplingRate.value(),
             farm=True,
             workers=self.ui.workers.value(),
-            advect=self.ui.advect.isChecked(),
+            advect=self.ui.advect.value(),
         )
         print 'Qube Job ID:', job_id
 

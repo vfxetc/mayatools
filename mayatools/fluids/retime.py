@@ -34,7 +34,7 @@ def main():
     option_parser.add_option('-v', '--verbose', action='count', default=0)
     option_parser.add_option('-f', '--farm', action='store_true')
     option_parser.add_option('-w', '--workers', type='int', default=20)
-    option_parser.add_option('-a', '--advect', action='store_true')
+    option_parser.add_option('-a', '--advect', type='float', default=0.0)
     opts, args = option_parser.parse_args()
 
     if len(args) != 2:
@@ -66,7 +66,7 @@ def schedule_retime(
     farm=True,
     workers=20,
     verbose=0,
-    advect=True,
+    advect=0.0,
 ):
 
     dst_path = os.path.abspath(dst_path)
