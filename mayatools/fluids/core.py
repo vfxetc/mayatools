@@ -298,6 +298,8 @@ class Shape(object):
         if z < self.bb_min[2] or z > self.bb_max[2]:
             raise IndexError('z')
 
+        # Don't need to worry about a math.floor here since these will never
+        # be negative (given the conditions above).
         xi = int((x - self.bb_min[0]) / self.spec.unit_size[0])
         yi = int((y - self.bb_min[1]) / self.spec.unit_size[1])
         zi = int((z - self.bb_min[2]) / self.spec.unit_size[2])
@@ -330,7 +332,15 @@ class Shape(object):
             xi + (yi *  xr     ) + (zi *  xr      * (yr + 1)) + ((xr + 1) * yr * zr),
             xi + (yi *  xr     ) + (zi *  xr      *  yr     ) + ((xr + 1) * yr * zr) + (xr * (yr + 1) * zr),
         )
-        return tuple(channel.data[i] for i in data_indices)
+        try:
+            return tuple(channel.data[i] for i in data_indices)
+        except IndexError:
+            print 'Not enough fluid data!'
+            print 'We are trying to lookup %r.' % (data_indices, )
+            expected = 3 * xr * yr * zr + xr * yr + yr * zr + zr * xr
+            print 'We have %d of %d expected floats.' % (len(channel.data), expected)
+            print 'Stats: %d/%d %d/%d %d/%d' % (xi, xr, yi, yr, zi, zr)
+            raise
 
     @classmethod
     def setup_blend(cls, frame, name, shape_a, shape_b):
