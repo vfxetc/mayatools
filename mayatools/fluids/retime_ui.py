@@ -11,6 +11,7 @@ from uitools.qt import QtCore, QtGui, Qt
 from uitools.layout import vbox, hbox
 
 from .retime import schedule_retime
+from ..tickets import ticket_ui_context
 
 
 def selected_fluid_caches():
@@ -152,6 +153,11 @@ class Dialog(QtGui.QDialog):
             dstWidget.setText(directory[0])
 
     def _on_exportButton_clicked(self, *args):
+
+        with ticket_ui_context():
+            self._export()
+
+    def _export(self):
 
         src_path = os.path.join(
             str(self.ui.srcDirectory.text()),

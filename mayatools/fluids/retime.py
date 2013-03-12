@@ -131,13 +131,27 @@ def schedule_retime(
     dst_cache.update_xml(dst_start, dst_end)
     dst_cache.write_xml(dst_path)
 
+    def get_frames_for(src_time):
+        try:
+            frame_a_path = [f[1] for f in frame_times if f[0] <= src_time][-1]
+            frame_b_path = next(f[1] for f in frame_times if f[0] >= src_time)
+        except (IndexError, StopIteration):
+            def format_time(time):
+                frames, ticks = divmod(time, 250)
+                return '%d:%d' % (frames, ticks)
+            raise ValueError('Cannot find data for time %s; have from %s to %s' % (
+                format_time(src_time),
+                format_time(frames[0][0]),
+                format_time(frames[-1][0]),
+            ))
+        return frame_a_path, frame_b_path
+
     if farm:
         executor = qbfutures.Executor(cpus=workers, groups='farm', reservations='host.processors=1')
         with executor.batch(name='Retime Fluid:%s:%s' % (os.path.basename(src_cache.directory), src_cache.shape_specs.keys()[0])) as batch:
 
             for src_time, dst_time in iter_ticks(src_start, src_end, dst_start, dst_end, sampling_rate):
-                frame_a_path = [f[1] for f in frame_times if f[0] <= src_time][-1]
-                frame_b_path = next(f[1] for f in frame_times if f[0] >= src_time)
+                frame_a_path, frame_b_path = get_frames_for(src_time)
                 batch.submit_ext(
                     func='mayatools.fluids.retime:blend_one_on_farm',
                     args=[src_cache.xml_path, src_time, dst_time, frame_a_path, frame_b_path, dst_base_path, advect],
@@ -145,13 +159,10 @@ def schedule_retime(
                 )
         return batch.futures[0].job_id
 
-
     # Iterate over the requested ticks.
     for src_time, dst_time in iter_ticks(src_start, src_end, dst_start, dst_end, sampling_rate):
-        frame_a_path = [f[1] for f in frame_times if f[0] <= src_time][-1]
-        frame_b_path = next(f[1] for f in frame_times if f[0] >= src_time)
+        frame_a_path, frame_b_path = get_frames_for(src_time)
         blend_one_on_farm(src_cache.xml_path, src_time, dst_time, frame_a_path, frame_b_path, dst_base_path, advect)
-
 
 
 def blend_one_on_farm(cache, src_time, dst_time, frame_a, frame_b, dst_base_path, advect):
