@@ -326,9 +326,9 @@ class Shape(object):
         yr = int(self.resolution[1])
         zr = int(self.resolution[2])
         data_indices = (
-            xi + ( yi      * (xr + 1)) + ( zi      * (xr + 1) *  yr     ),
-            xi + ((yi + 1) *  xr     ) + ( zi      *  xr      * (yr + 1)) + ((xr + 1) * yr * zr),
-            xi + ( yi      *  xr     ) + ((zi + 1) *  xr      *  yr     ) + ((xr + 1) * yr * zr) + (xr * (yr + 1) * zr),
+            xi + (yi * (xr + 1)) + (zi * (xr + 1) *  yr     ),
+            xi + (yi *  xr     ) + (zi *  xr      * (yr + 1)) + ((xr + 1) * yr * zr),
+            xi + (yi *  xr     ) + (zi *  xr      *  yr     ) + ((xr + 1) * yr * zr) + (xr * (yr + 1) * zr),
         )
         return tuple(channel.data[i] for i in data_indices)
 
