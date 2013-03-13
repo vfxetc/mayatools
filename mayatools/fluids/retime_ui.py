@@ -109,7 +109,7 @@ class RetimeUI(object):
         layout.addStretch()
         opts.layout().addLayout(layout)
 
-        self.advect = QtGui.QDoubleSpinBox(value=0.5)
+        self.advect = QtGui.QDoubleSpinBox(value=0.5, minimum=-6000, maximum=6000)
         layout = hbox('Advection Scale', self.advect)
         layout.addStretch()
         opts.layout().addLayout(layout)
