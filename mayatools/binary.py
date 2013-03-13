@@ -121,6 +121,8 @@ def _hexdump(raw, initial_offset=0, chunk=4, line=16, indent='', tag=None):
     offset = initial_offset
 
     for encoded_chunk in encoder.split(raw, line):
+        if not encoded_chunk:
+            continue
 
         yield indent
         yield '%04x: ' % offset
@@ -368,10 +370,13 @@ if __name__ == '__main__':
 
     for type_spec in opts.type:
         type_spec = type_spec.split(':')
+        names = type_spec[0].split(',')
         if len(type_spec) == 1:
-            tag_encoding.pop(type_spec[0])
+            for name in names:
+                tag_encoding.pop(name, None)
         elif len(type_spec) == 2:
-            tag_encoding[type_spec[0]] = type_spec[1]
+            for name in names:
+                tag_encoding[name] = type_spec[1]
         else:
             raise ValueError('type spec should look like NAME:type')
 
