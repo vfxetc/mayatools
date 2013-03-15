@@ -363,8 +363,14 @@ if __name__ == '__main__':
     opt_parser = OptionParser()
     opt_parser.add_option('-t', '--type', action='append', default=[])
     opt_parser.add_option('-n', '--no-types', action='store_true')
+    opt_parser.add_option('-x', '--hex', action='store_true')
     opts, args = opt_parser.parse_args()
 
+    if opts.hex:
+        for arg in args:
+            print hexdump(open(arg).read())
+        exit()
+    
     if opts.no_types:
         tag_encoding.clear()
 
