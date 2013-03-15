@@ -37,6 +37,11 @@ Fluids
         - does not use lowerFace for velocity
         - combined -> cmds.setFluidAttr(at='velocity', xi=x, yi=y, zi=z, vv=(x, y, z), lowerFace=True)
 
+- My tests indicate that the velocities are in local coordinates (even after
+  rotating and scaling, and that my velocity lookup code is good).
+- Do velocities need to be scaled by the "rate scale"?
+
+
 
 General
 -------

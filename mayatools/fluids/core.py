@@ -432,7 +432,34 @@ class Channel(object):
 
 if __name__ == '__main__':
 
+    from optparse import OptionParser
     import sys
-    cache = Cache(sys.argv[1])
-    cache.pprint()
+
+    opt_parser = OptionParser()
+    opt_parser.add_option('-v', '--velocities', action='store_true')
+    opt_parser.add_option('-s', '--start', type='float')
+    opt_parser.add_option('-e', '--end', type='float')
+    opts, args = opt_parser.parse_args()
+
+    for arg in args:
+
+        cache = Cache(arg)
+        cache.pprint()
+
+        start_time = opts.start or cache.frames[0].start_time
+        end_time = max(start_time, opts.end or cache.frames[-1].end_time)
+
+        if opts.velocities:
+            for frame in cache.frames:
+
+                if frame.start_time < start_time or frame.end_time > end_time:
+                    continue
+
+                for shape in frame.shapes.itervalues():
+                    den = shape.channels.get('density')
+                    vel = shape.channels.get('velocity')
+                    if not den or not vel:
+                        continue
+                    for coord in shape.iter_centers():
+                        print '%6s %6s %6s | %6s | %6s %6s %6s' % (coord + tuple(shape.lookup_value(den, *coord)) + shape.lookup_velocity(vel, *coord))
 
