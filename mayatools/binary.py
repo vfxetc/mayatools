@@ -1,3 +1,9 @@
+"""This packages provides classes for reading and writing Maya's IFF_ inspired binary file format.
+
+.. _IFF: http://en.wikipedia.org/wiki/Interchange_File_Format
+
+"""
+
 import array
 import functools
 import itertools
@@ -10,11 +16,21 @@ _is_printable = set(string.printable).difference(string.whitespace).__contains__
 
 class Encoder(object):
 
+    """The base class for encoding/decoding packed data to/from native types."""
+
     def split(self, encoded, size_hint):
+        """Return an iterator over a split version of the encoded data.
+
+        :param str encoded: The packed data to split.
+        :param int size_hint: The suggested split size. Feel free to ignore
+            this if your data has an implicit size of its own.
+
+        """
         for i in xrange(0, len(encoded), size_hint):
             yield encoded[i:i + size_hint]
 
     def repr_chunk(self, chunk):
+        """Create string representation of a chunk returned from :meth:`split`."""
         return ''.join(c if _is_printable(c) else '.' for c in chunk)
 
 
@@ -52,7 +68,29 @@ encoders = {}
 
 
 def register_encoder(names, encoder=None):
-    """Decorator to register encoders."""
+    """Register an :class:`Encoder` for the given type names.
+
+    These types are a concept of this module, and have no parallel in the file
+    format itself. These are what we use to unpack the raw binary data into
+    something standard Python types.
+
+    Types that are registered upon import include:
+
+    * ``"float"``;
+    * ``"uint"`` (32-bit big-endian integer);
+    * ``"string"`` (``NULL`` terminated).
+
+    :param names: A string, or iterable of strings.
+    :param encoder: The :class:`Encoder` to use for this type.
+
+    This function can operate as a decorator as well::
+
+        @register_encoder('attr')
+        class AttributeEncoder(mayatools.binary.Encoder):
+            pass
+
+    """
+
     if isinstance(names, basestring):
         names = [names]
     if encoder is None:
@@ -68,7 +106,8 @@ register_encoder('uint', StructEncoder('L'))
 register_encoder('string', StringEncoder())
 
 
-# Map tag names to the name of an encoding.
+#: Map tag names to the name of an encoding. Add to this dict to interpret tags
+#: as certain types.
 tag_encoding = {
     
     # Maya headers.
@@ -102,10 +141,17 @@ tag_encoding = {
 
     # Cache data.
     'FBCA': 'float',  # floating cache array
+
 }
 
 
 def get_encoder(tag):
+    """Get an :class:`Encoder` for the given tag.
+
+    :param str: The 4 character node "tag".
+    :returns: The appropriate :class:`Encoder` or ``None``.
+
+    """
     encoding = tag_encoding.get(tag, 'raw')
     return encoders.get(encoding) or Encoder()
 
@@ -161,7 +207,11 @@ def _get_padding(size, alignment):
 
 class Node(object):
 
+    """Base class for group nodes in, and the root node of a Maya file graph."""
+
     def __init__(self):
+
+        #: The children of this node.
         self.children = []
 
     def add_child(self, child):
@@ -176,6 +226,7 @@ class Node(object):
         return self.add_child(Chunk(*args, **kwargs))
 
     def find(self, tag):
+        """Iterate across all descendants of this node with a given tag."""
         for child in self.children:
             if child.tag == tag:
                 yield child
@@ -184,6 +235,13 @@ class Node(object):
                     yield x
 
     def find_one(self, tag, *args):
+        """Find the first descendant of this node with a given tag.
+
+        :param str tag: The tag to find.
+        :param default: What to return if we can't find a node.
+        :raises KeyError: if we can't find a tag and no default is given.
+
+        """
         for child in self.find(tag):
             return child
         if args:
@@ -191,6 +249,15 @@ class Node(object):
         raise KeyError(tag)
 
     def dumps_iter(self):
+        """Iterate chunks of the packed version of this node and its children.
+
+        To write to a file::
+
+            with open(path, 'wb') as fh:
+                for chunk in node.dumps_iter():
+                    fh.write(chunk)
+
+        """
         for child in self.children:
             for x in child.dumps_iter():
                 yield x
@@ -198,18 +265,26 @@ class Node(object):
 
 class Group(Node):
 
+    """A group node in a Maya file graph."""
+
+
     def __init__(self, tag, type_='FOR4', size=0, start=0):
         super(Group, self).__init__()
 
+        #: The group type (e.g. ``FORM``, ``LIST``, ``PROP``, ``CAT``).
         self.type = type_
+
         self.size = size
         self.start = start
+
+        #: The data type.
         self.tag = tag
 
         self.alignment = _get_tag_alignment(self.type)
         self.end = self.start + self.size + _get_padding(self.size, self.alignment)
 
     def pprint(self, _indent=0):
+        """Print a structured representation of the group to stdout."""
         print _indent * '    ' + ('%s group (%s); %d bytes for %d children:' % (self.tag, self.type, self.size, len(self.children)))
         for child in self.children:
             child.pprint(_indent=_indent + 1)
@@ -229,13 +304,19 @@ class Chunk(object):
 
     def __init__(self, tag, data='', offset=None, **kwargs):
         self.parent = None
+
+        #: The data type.
         self.tag = tag
+
+        #: Raw binary data.
         self.data = data
+
         self.offset = offset
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
 
     def pprint(self, _indent):
+        """Print a structured representation of the node to stdout."""
         encoding = tag_encoding.get(self.tag)
         if encoding:
             header = '%d bytes as %s(s)' % (len(self.data), encoding)
@@ -268,6 +349,9 @@ class Chunk(object):
 
     @property
     def ints(self):
+        """Binary data interpreted as array of unsigned integers.
+
+        This is settable to an iterable of integers."""
         return self._unpack('L')
 
     @ints.setter
@@ -276,6 +360,9 @@ class Chunk(object):
 
     @property
     def floats(self):
+        """Binary data interpreted as array of floats.
+
+        This is settable to an iterable of floats."""
         return self._unpack('f')
 
     @floats.setter
@@ -284,6 +371,9 @@ class Chunk(object):
 
     @property
     def string(self):
+        """Binary data interpreted as a string.
+
+        This is settable with a string."""
         return self.data.rstrip('\0')
 
     @string.setter
@@ -292,6 +382,13 @@ class Chunk(object):
 
 
 class Parser(Node):
+
+    """Maya binary file parser.
+
+    :param file: The file-like object to parse from; must support ``read(size)``
+        and ``tell()``.
+
+    """
 
     def __init__(self, file):
         super(Parser, self).__init__()
@@ -304,11 +401,17 @@ class Parser(Node):
         self._file.close()
 
     def pprint(self, _indent=-1):
+        """Print a structured representation of the file to stdout."""
         for child in self.children:
             child.pprint(_indent=_indent + 1)
 
     def parse_next(self):
+        """Parse to the next :class:`Group` or :class:`Chunk`, returning it.
 
+        This is useful when you want to head the headers of a file without
+        loading its entire contents into memory.
+
+        """
         # Clean the group stack.
         while self._group_stack and self._group_stack[-1].end <= self._file.tell():
             self._group_stack.pop(-1)
@@ -350,6 +453,7 @@ class Parser(Node):
             return chunk
 
     def parse_all(self):
+        """Parse the entire (remaining) file."""
         while self.parse_next() is not None:
             pass
 

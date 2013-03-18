@@ -1,3 +1,5 @@
+.. _index:
+
 mayatools
 =========
 
@@ -5,13 +7,15 @@ A collection of general tools for working within Maya.
 
 
 API Reference
---------
+-------------
 
 .. toctree::
     :maxdepth: 2
 
     context
     downgrade
+
+    binary
 
     debug
     qt
