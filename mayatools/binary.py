@@ -163,11 +163,9 @@ class Node(object):
 
     def __init__(self):
         self.children = []
-        self.types = {}
 
     def add_child(self, child):
         self.children.append(child)
-        self.types.setdefault(child.tag, []).append(child)
         child.parent = self
         return child
 
