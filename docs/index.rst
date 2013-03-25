@@ -3,11 +3,11 @@
 mayatools
 =========
 
-A collection of general tools for working within Maya.
+A collection of Python tools for working with(in) Autodesk's Maya.
 
 
-API Reference
--------------
+Contents
+--------
 
 .. toctree::
     :maxdepth: 2
@@ -20,7 +20,8 @@ API Reference
     debug
     qt
 
-.. todo:: Document:
+
+.. todo::
 
     - camera import/export
     - geocache import/export

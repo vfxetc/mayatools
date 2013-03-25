@@ -1,4 +1,5 @@
-"""This packages provides classes for reading and writing Maya's IFF_ inspired binary file format.
+"""This packages provides classes for reading and writing Maya's IFF_
+inspired :ref:`binary file format <binary_anatomy>`.
 
 .. _IFF: http://en.wikipedia.org/wiki/Interchange_File_Format
 

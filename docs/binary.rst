@@ -39,6 +39,8 @@ API Reference
         :members:
 
 
+.. _binary_anatomy:
+
 Anatomy of a Binary File
 ------------------------
 
