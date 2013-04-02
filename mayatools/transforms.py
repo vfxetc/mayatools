@@ -38,6 +38,10 @@ def transfer_global_transforms(dst_to_src, time_range=None):
 
     cmds.delete(*constraints)
 
-
-
+    # Fix angle flips with a Euler filter.
+    for dst in dst_to_src.iterkeys():
+        curves = cmds.listConnections(dst, type='animCurveTA')
+        curves = [x for x in curves if 'rotate' in x]
+        if curves:
+            cmds.filterCurve(*curves, filter='euler')
 
