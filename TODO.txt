@@ -1,3 +1,35 @@
+General
+-------
+
+- mayatools.lock:unlock_selected
+    OR
+  mayatools.dag:unlock with pass_selection_as_args=true in shelf.yml and recurse=True
+
+
+- Create code linter that warns of short flags and replaces them with long flags
+  via `cmds.help('playblast', syntaxOnly=True)`
+
+
+- ks.maya.workspace.set_from_path and set_from_entity and set_from_environ
+    - current_path()
+    - current_entity()
+    - setup_auto_hook()
+
+
+- mayatools.file.set_version(old_path, 28, active=False)
+  - swaps out the version numbers, then increments revision until it is
+    unique
+  - active=True attempts to open the file for writing so that we know that
+    it doesn't exist, and that if it does then we own it
+      os.open(path, os.O_CREAT | os.O_EXCL) and catch errno.EEXIST
+- mayatools.file.save_copy_as(new_path, force=True)
+
+
+- Way to have settings dialog for the Playblaster so that they can disable the
+  "renderOffscreen" setting?
+    - General MayaDialog with settings that saves to dotfile in user's home?
+
+
 Fluids
 --------------
 
@@ -6,6 +38,7 @@ Fluids
   - google for "fluid advect c++"
   - two step? http://code.google.com/p/fluidic/source/browse/trunk/Resources/Advect.cg?r=15
   - do this at the very end
+
 
 - How is velocity laid out?
     It is on the surfaces bettween voxels.
@@ -26,6 +59,7 @@ Fluids
     Looking at the raw data set via cmds.setFluidAttr(..., lowerFace=True), the X values go (0, 1, 2, 2), the Y (0, 1, 2, 3, 4, 4),
     and the Z do the same. They also iterate in the same Z,Y,X order that the density does.
 
+
 - Tests:
     densities:
         - set density to X/Y/Z coordinate + 1
@@ -37,41 +71,68 @@ Fluids
         - does not use lowerFace for velocity
         - combined -> cmds.setFluidAttr(at='velocity', xi=x, yi=y, zi=z, vv=(x, y, z), lowerFace=True)
 
+
 - My tests indicate that the velocities are in local coordinates (even after
   rotating and scaling, and that my velocity lookup code is good).
 - Do velocities need to be scaled by the "rate scale"?
 
 
-
-General
+Cameras
 -------
 
-- context.parent
-- context.progress as p
-    Wrap progressWindow, or the main progress bar
+- remember which camera was selected in previous export
 
-- CommandPort.call(..., stdio=True, main_thread=True)
-    -> we want to run our nose in a secondary thread that keeps calling
-       out to the main thread but then holding back
 
-    @maya_test
-    def test_only_needs_standalone():
-        pass
+- test baking camera to world space:
 
-    @maya_test(version=2011)
+  cmds.file(new=True, force=True)
+
+  dolly = cmds.createNode('transform', name='dolly')
+
+  camera = 'perspShape'
+  transform = 'persp'
+
+  cmds.parent(persp, dolly)
+  cmds.move(3, 4, 5, dolly)
+
+  child = cmds.spaceLocator(name='baggage')
+  cmds.parent(child, transform)
+
+
+Playblasts
+----------
+
+- Playblasting on the farm.
+
+  - Could try using Xvfb...
+    - sg06 has Xvfb
+        - sg05 has it on Fedora 14
+            - 2011 still crashes
+            - 2012 gets to ask about preferences
+    - Crashes when Maya tries to enumerate input devices.
+      - Xlib:  extension "XInputExtension" missing on display ":100.0".
+        - screenshot with: DISPLAY=:5 import -window root screenshot.png
+
+  - Maybe with Xvnc or vncserver?
     
-    @maya_test(gui=True):
-    def test_in_main_gui_thread(self):
+    # Start the virtual X server.
+    Xvfb :100 -screen 0 1920x1080x24
 
-        # this is the main thread
-        # if this returns a generator then it is assumed to be a trampoline
+    # Launch Maya.
+    DISPLAY=:100 maya2013
 
-        res = yield waitfor(2), functools.partial(qpath, root, 'query')
+    # Take a screenshot.
+    DISPLAY=:100 import -window root ~/Desktop/screenshot.png
 
-        # yield will return our results, or throw a TimeoutError
 
-        res = yield waitfor(2)
-
-    raise SkipTest if it isn't in maya
+    KEY_TOOLS_PYTHONPATH= KEY_TOOLS_START_LOCATION=local KEY_TOOLS_DEV_PORT=50124 DISPLAY=:100 maya2013
+    DISPLAY=:100 import -window root screenshot.png
+    python "cmds.file('/Volumes/VFX/Projects/Testing_Sandbox/SEQ/GC/GC_001_001/Anim/maya/scenes/GC_001_001_Anim_stack_anim_v0002_r0002.mb', open=True, f=True)"
+    select -all
+    displaySmoothness -divisionsU 3 -divisionsV 3 -pointsWire 16 -pointsShaded 4 -polygonObject 3;
+    subdivDisplaySmoothness -smoothness 3;
+    select -clear
+    python "cmds.playblast(f='playblast2.mov', offScreen=True, forceOverwrite=True, percent=100, width=960, height=540, viewer=False, showOrnaments=False)"
+    /Volumes/VFX/home/mboers/maya/playblast2.mov
 
 
