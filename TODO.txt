@@ -29,6 +29,11 @@ General
   "renderOffscreen" setting?
     - General MayaDialog with settings that saves to dotfile in user's home?
 
+- Isolate quicktime modules from key_base.
+
+- Implement fluid retimer as Cython, or maybe even as a Maya plugin that runs
+  in real-time.
+
 
 Fluids
 --------------
