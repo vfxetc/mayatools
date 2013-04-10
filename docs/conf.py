@@ -128,11 +128,11 @@ pygments_style = 'sphinx'
 
 # -- Options for HTML output ---------------------------------------------------
 
-flask_path = os.path.abspath('../../docs/_themes/flask')
-if os.path.exists(flask_path):
-    sys.path.append(flask_path)
-    html_theme_path = [flask_path]
-    html_theme = 'flask'
+local_theme_path = os.path.abspath('../../docs/_themes/westernx')
+if os.path.exists(local_theme_path):
+    sys.path.append(local_theme_path)
+    html_theme_path = [local_theme_path]
+    html_theme = 'westernx'
     html_theme_options = {
         'index_logo': None,
     }
