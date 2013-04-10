@@ -16,15 +16,17 @@ except ImportError:
     pass
 
 try:
-    from maya import cmds
+    from maya import cmds, mel
 except ImportError:
     class Stub(object):
         cmds = None
+        mel = None
         utils = None
         standalone = None
     maya = Stub()
     sys.modules['maya'] = maya
     sys.modules['maya.cmds'] = None
+    sys.modules['maya.mel'] = None
     sys.modules['maya.utils'] = None
     sys.modules['maya.standalone'] = None
     cmds = Stub()
