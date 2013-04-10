@@ -4,7 +4,6 @@ python:
     - "2.6"
     - "2.7"
 
-# There is no installation required.
-# install: pip install -r requirements.txt --use-mirrors
+install: pip install -r requirements.txt --use-mirrors
 
 script: nosetests tests

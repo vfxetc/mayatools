@@ -1,0 +1,2 @@
+# Manually install testing requirements here since it doesn't do so itself.
+-e git://github.com/westernx/uitools.git@master#egg=uitools
