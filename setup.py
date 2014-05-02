@@ -1,4 +1,4 @@
-from distutils.core import setup
+from setuptools import setup, find_packages
 
 setup(
     name='mayatools',
@@ -6,7 +6,7 @@ setup(
     description='Collection of general tools and utilities for working in and with Maya.',
     url='https://github.com/westernx/mayatools',
     
-    packages=['mayatools'],
+    packages=find_packages(exclude=['build*', 'tests*']),
     
     author='Mike Boers',
     author_email='mayatools@mikeboers.com',
