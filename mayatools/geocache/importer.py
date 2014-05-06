@@ -5,14 +5,11 @@ import re
 import difflib
 import sys
 
-from PyQt4 import QtCore, QtGui
-Qt = QtCore.Qt
-
 from maya import cmds, mel
 
 from sgfs import SGFS
-
 from sgfs.ui import product_select
+from uitools.qt import Qt, QtCore, QtGui
 import sgfs.ui.scene_name.widget as scene_name
 import sgpublish.check.maya
 

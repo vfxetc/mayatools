@@ -3,15 +3,11 @@ from __future__ import absolute_import
 import os
 import re
 
-
-from PyQt4 import QtCore, QtGui
-Qt = QtCore.Qt
-
 from maya import cmds, mel
 
-import qbfutures.maya
-
 from sgfs.ui import product_select
+from uitools.qt import Qt, QtCore, QtGui
+import qbfutures.maya
 import sgfs.ui.scene_name.widget as scene_name
 
 import sgpublish.exporter.maya

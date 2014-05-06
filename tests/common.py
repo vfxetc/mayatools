@@ -4,16 +4,10 @@ import sys
 from unittest import TestCase as BaseTestCase
 
 from uitools import trampoline
+from uitools.qt import QtCore, QtGui, Qt
 from uitools.trampoline import bounce, sleep, qpath
 
 from mayatools.test import requires_maya
-
-
-try:
-    from PyQt4 import QtCore, QtGui
-    Qt = QtCore.Qt
-except ImportError:
-    pass
 
 try:
     from maya import cmds, mel
