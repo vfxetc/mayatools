@@ -1,6 +1,6 @@
 
 try:
-    import sip
+    from uitools.sip import wrapinstance
     from uitools.qt import QtCore
     import maya.OpenMayaUI as apiUI
 
@@ -15,7 +15,7 @@ def get_maya_window():
     """Get the main Maya window as a QtGui.QMainWindow."""
     ptr = apiUI.MQtUtil.mainWindow()
     if ptr is not None:
-        return sip.wrapinstance(long(ptr), QtCore.QObject)
+        return wrapinstance(long(ptr), QtCore.QObject)
 
 
 def maya_to_qt(maya_object):
@@ -32,4 +32,4 @@ def maya_to_qt(maya_object):
         apiUI.MQtUtil.findMenuItem(maya_object)
     )
     if ptr is not None:
-        return sip.wrapinstance(long(ptr), QtCore.QObject)
+        return wrapinstance(long(ptr), QtCore.QObject)
