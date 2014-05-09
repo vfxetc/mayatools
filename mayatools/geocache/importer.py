@@ -23,7 +23,7 @@ def silk(name):
     # __file__ = "$KS_TOOLS/key_base/3d/maya/python/geocache/importer.py"
     # icons = "$KS_TOOLS/key_base/art/icons"
     icons = os.path.abspath(os.path.join(__file__,
-        '..', '..', '..',
+        '..', '..',
         'art', 'icons', 'silk'))
     return os.path.join(icons, name + '.png')
 

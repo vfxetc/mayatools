@@ -7,6 +7,7 @@ setup(
     url='https://github.com/westernx/mayatools',
     
     packages=find_packages(exclude=['build*', 'tests*']),
+    include_package_data=True,
     
     author='Mike Boers',
     author_email='mayatools@mikeboers.com',
