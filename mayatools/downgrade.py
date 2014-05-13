@@ -63,7 +63,7 @@ def downgrade_to_2011(src_path, dst_path):
                 pass
         
         # Strip all requires, but add a 2011 requires.
-        if is_command_block and line_parts[0] == 'requires':
+        if command_block[:1] == ('requires', ):
             if line_parts[1] == 'maya':
                 line_parts[2] = '"2011"'
             else:
