@@ -143,19 +143,8 @@ def iter_existing_cache_connections():
             continue
                 
         shapes = cmds.listRelatives(transform, children=True, shapes=True) or []
-        
-        # Maya will often add a "Deformed" copy of a mesh. Sometimes there is
-        # a "Orig". Sometimes there are both.
-        if len(shapes) > 1:
-            a = basename(shapes[0])
-            for other in shapes[1:]:
-                b = basename(other)
-                if not (b[:len(a)] == a and
-                    b[len(a):] in ('Deformed', 'Orig')
-                ):
-                    break
-            else:
-                shapes = [shapes[0]]
+        shapes = isolate_deformed_shape(shapes)
+
         if len(shapes) != 1:
             cmds.warning('Could not identify shape connected to %r; found %r' % (cache_node, shapes))
             yield cache_node, cache_path, channel, transform, None
@@ -165,6 +154,22 @@ def iter_existing_cache_connections():
         
         yield cache_node, cache_path, channel, transform, shape
     
+
+def isolate_deformed_shape(shapes):
+    # Maya will often add a "Deformed" copy of a mesh. Sometimes there is
+    # a "Orig". Sometimes there are both.
+    if len(shapes) > 1:
+        a = basename(shapes[0])
+        for other in shapes[1:]:
+            b = basename(other)
+            if not (b[:len(a)] == a and
+                b[len(a):] in ('Deformed', 'Orig')
+            ):
+                break
+        else:
+            shapes = [shapes[0]]
+    return shapes
+
 
 def get_existing_cache_mappings():
     """Inspect the scene and determine which channels map to what.
@@ -247,15 +252,30 @@ def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False)
 
         if as_abc:
 
-            # Warn if there are transforms in the members.
-            transforms = [m for m in members if cmds.nodeType(m) == 'transform']
-            if transforms:
-                cmds.warning('Some members of the cache set are transforms, and won\'t be exported by Alembic:\n' + '\n'.join(sorted(transforms)))
+            # We need to grab the shapes from the transforms.
+            shapes = []
+            transforms = []
+            for node in members:
+                if cmds.nodeType(node) == 'transform':
+                    node_shapes = cmds.listRelatives(node, children=True, shapes=True)
+                    node_shapes = isolate_deformed_shape(node_shapes)
+                    if len(node_shapes) != 1:
+                        cmds.warning('Transform %s did not have one obvious shape: %r' % (node, node_shapes))
+                    shapes.extend(node_shapes)
+                else:
+                    shapes.append(node)
+
+            cmds.select(shapes, replace=True)
+
             job = '''
                 -sl
+                -uvWrite
                 -frameRange {frame_from} {frame_to}
                 -file {path}.abc
             '''
+            if world:
+                job += ' -worldSpace'
+
             cmds.AbcExport(j=re.sub(r'\s+', ' ', job).format(**locals()))
     
     finally:
