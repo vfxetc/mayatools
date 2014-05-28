@@ -195,7 +195,7 @@ def get_existing_cache_mappings():
     return mappings
 
 
-def export_cache(members, path, name, frame_from, frame_to, world):
+def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False):
 
     if not os.path.exists(path):
         os.makedirs(path)
@@ -244,6 +244,15 @@ def export_cache(members, path, name, frame_from, frame_to, world):
             version,
             ', '.join('"%s"' % x for x in args),
         ))
+
+        if as_abc:
+            job = '''
+                -sl
+                -frameRange {frame_from} {frame_to}
+                -file {path}.abc
+            '''
+            print 'AbcExport job:', job
+            cmds.AbcExport(j=re.sub(r'\s+', ' ', job).format(**locals()))
     
     finally:
             

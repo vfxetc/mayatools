@@ -39,7 +39,7 @@ class Exporter(sgpublish.exporter.maya.Exporter):
         kwargs['name'] = '%s - v%04d' % (publish.name, publish.version)
         self.export(publish.directory, publish.path, **kwargs)
 
-    def export(self, directory, path, to_cache, on_farm, name=None):
+    def export(self, directory, path, to_cache, on_farm, as_abc, name=None):
 
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -69,13 +69,13 @@ class Exporter(sgpublish.exporter.maya.Exporter):
             with executor.batch('Geocache Export - %s' % (name or os.path.basename(path))) as batch:
                 for args in to_cache:
                     members, path, name, frame_from, frame_to, world = args
-                    batch.submit_ext(export_cache, args=args, name=str(name))
+                    batch.submit_ext(export_cache, args=args, kwargs={'as_abc': as_abc}, name=str(name))
             
             QtGui.QMessageBox.information(None, "Submitted to Qube", "The geocache export was submitted as job %d" % batch.futures[0].job_id)
 
         if not on_farm:
             for args in to_cache:
-                export_cache(*args)
+                export_cache(*args, as_abc=as_abc)
 
 
 
@@ -220,6 +220,13 @@ class Dialog(QtGui.QDialog):
             self._local_radio.setChecked(True)
         else:
             self._world_radio.setChecked(True)
+
+        self._abc_check = QtGui.QCheckBox("Also export as Alembic")
+        options_box.layout().addWidget(self._abc_check)
+        if hasattr(cmds, 'AbcExport'):
+            self._abc_check.setChecked(True)
+        else:
+            self._abc_check.setDisabled(True)
         
 
         self._exporter = Exporter()
@@ -315,7 +322,11 @@ class Dialog(QtGui.QDialog):
     def _on_process_button(self):
         
         try:
-            publisher = self._exporter_widget.export(to_cache=list(self._iter_to_cache()), on_farm=False)
+            publisher = self._exporter_widget.export(
+                to_cache=list(self._iter_to_cache()),
+                as_abc=self._abc_check.isChecked(),
+                on_farm=False,
+            )
         except PublishSafetyError:
             return
 
@@ -326,7 +337,11 @@ class Dialog(QtGui.QDialog):
     def _on_queue_button(self):
 
         try:
-            publisher = self._exporter_widget.export(to_cache=list(self._iter_to_cache()), on_farm=True)
+            publisher = self._exporter_widget.export(
+                to_cache=list(self._iter_to_cache()),
+                as_abc=self._abc_check.isChecked(),
+                on_farm=True,
+            )
         except PublishSafetyError:
             return
 
