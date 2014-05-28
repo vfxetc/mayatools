@@ -246,12 +246,16 @@ def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False)
         ))
 
         if as_abc:
+
+            # Warn if there are transforms in the members.
+            transforms = [m for m in members if cmds.nodeType(m) == 'transform']
+            if transforms:
+                cmds.warning('Some members of the cache set are transforms, and won\'t be exported by Alembic:\n' + '\n'.join(sorted(transforms)))
             job = '''
                 -sl
                 -frameRange {frame_from} {frame_to}
                 -file {path}.abc
             '''
-            print 'AbcExport job:', job
             cmds.AbcExport(j=re.sub(r'\s+', ' ', job).format(**locals()))
     
     finally:
