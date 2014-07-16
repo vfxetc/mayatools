@@ -304,8 +304,8 @@ class Dialog(QtGui.QDialog):
     
     def _iter_to_cache(self):
         
-        frame_from = cmds.playbackOptions(q=True, minTime=True)
-        frame_to = cmds.playbackOptions(q=True, maxTime=True)
+        frame_from = cmds.playbackOptions(q=True, animationStartTime=True)
+        frame_to = cmds.playbackOptions(q=True, animationEndTime=True)
         world = self._world_radio.isChecked()
         
         for group in self._groups.itervalues():
