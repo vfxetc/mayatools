@@ -191,8 +191,16 @@ class Geometry(QtGui.QWidget):
                 shapes = cmds.listRelatives(node, children=True, type="mesh")
                 if shapes:
                     res.add(shapes[0])
+                shapes = cmds.listRelatives(node, children=True, type="nurbsSurface")
+                if shapes:
+                    res.add(shapes[0])
+                
             elif type_ == 'mesh':
                 res.add(node)
+                
+            elif type_ == 'nurbsSurface':
+                res.add(node)
+                
         return sorted(res)
     
     def _cache_changed(self):
@@ -431,7 +439,7 @@ class Selection(Geometry):
         
     def _on_update(self):
         selection = cmds.ls(sl=True)
-        selection = [x for x in selection if cmds.nodeType(x) in ('mesh', 'transform')]
+        selection = [x for x in selection if cmds.nodeType(x) in ('mesh', 'nurbsSurface', 'transform')]
         self.setSelection(selection)
     
     def nodes(self):

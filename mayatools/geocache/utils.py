@@ -12,13 +12,26 @@ def get_cache_channels(cache_path):
     try:
         return mcc.get_channels(cache_path)
     except mcc.ParseError as e:
+        raise
         cmds.warning('Could not parse MCC for channel data; %r' % e)
         channels = cmds.cacheFile(q=True, fileName=cache_path, channelName=True)
         return [(c, None) for c in channels]
 
 
 def get_point_counts(meshes):
-    return [(mesh, cmds.getAttr(mesh + '.vrts', size=True)) for mesh in meshes]
+    return [(mesh, get_point_count(mesh)) for mesh in meshes]
+
+def get_point_count(mesh):
+    if cmds.nodeType(mesh) in ['mesh']:
+        return get_poly_point_count(mesh)
+    elif cmds.nodeType(mesh) in ['nurbsSurface']:
+        return get_nurbs_surface_point_count(mesh)
+
+def get_poly_point_count(mesh):
+    return cmds.getAttr(mesh + '.vrts', size=True)
+
+def get_nurbs_surface_point_count(mesh):
+    return len(cmds.ls('%s.cv[*]'% mesh, flatten=True))
 
     
 def basename(name):
