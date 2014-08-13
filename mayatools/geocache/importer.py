@@ -188,10 +188,10 @@ class Geometry(QtGui.QWidget):
         for node in self.nodes():
             type_ = cmds.nodeType(node)
             if type_ == 'transform':
-                shapes = cmds.listRelatives(node, children=True, type="mesh")
+                shapes = cmds.listRelatives(node, children=True, type="mesh", fullPath=True)
                 if shapes:
                     res.add(shapes[0])
-                shapes = cmds.listRelatives(node, children=True, type="nurbsSurface")
+                shapes = cmds.listRelatives(node, children=True, type="nurbsSurface", fullPath=True)
                 if shapes:
                     res.add(shapes[0])
                 
