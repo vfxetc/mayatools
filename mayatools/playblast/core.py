@@ -41,6 +41,7 @@ def playblast(**kwargs):
     # These should really be controlled elsewhere...
     kwargs.setdefault('widthHeight', (1280, 720))
     kwargs.setdefault('offScreen', True)
+    kwargs.setdefault('forceOverwrite', True)
     
     # So much state! Can we have Python2.7 now?
     with context.attrs(settings['attrs'], camera_attrs):
