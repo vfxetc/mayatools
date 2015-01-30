@@ -65,9 +65,9 @@ class PlayblastTable(QtGui.QTableWidget):
         self.horizontalHeader().setStretchLastSection(True)
         self.setHorizontalHeaderLabels(['First Frame', 'Name', 'Creation Time'])
         self.setAlternatingRowColors(True)
-        self.setSelectionMode(self.SingleSelection)
         self.setSelectionBehavior(self.SelectRows)
         self.setSortingEnabled(True)
+        self.sortItems(2, Qt.DescendingOrder)
         self.setEditTriggers(QtGui.QAbstractItemView.NoEditTriggers)
         self.itemDoubleClicked .connect(lambda x: self.flipbook_playblast())
 
@@ -96,7 +96,7 @@ class PlayblastTable(QtGui.QTableWidget):
         refresh_action = menu.addAction("Refresh")
         refresh_action.triggered.connect(self.refresh.emit)
         delete_action = menu.addAction("Delete")
-        delete_action.triggered.connect(self.delete_playblast)
+        delete_action.triggered.connect(self.delete_playblasts)
         action = menu.exec_(event.globalPos())
 
     def current_playblast(self):
@@ -110,11 +110,22 @@ class PlayblastTable(QtGui.QTableWidget):
         path = playblast and playblast.directory
         return path if path and os.path.exists(path) else None
 
-    def delete_playblast(self):
-        dirname = self.current_path()
-        print "rm", dirname
-        self.removeRow(self.currentRow())
-        shutil.rmtree(dirname)
+    def delete_playblasts(self):
+        rows = []
+        for item in self.selectedItems():
+            if not item.row() in rows:
+                rows.append(item.row())
+
+        for row in reversed(sorted(rows)):
+            dirname = None
+            thumb = self.cellWidget(row, 0) if row is not None else None
+            if thumb and thumb.playblast and thumb.playblast.directory and os.path.exists(thumb.playblast.directory):
+                dirname = thumb.playblast.directory
+
+            print "rm", dirname, row
+            self.removeRow(row)
+            if dirname:
+                shutil.rmtree(dirname)
 
     def flipbook_playblast(self):
         playblast = self.current_playblast()
@@ -150,13 +161,15 @@ class Picker(QtGui.QTabWidget):
     
     pathChanged = QtCore.pyqtSignal(object)
     
-    def __init__(self, parent=None):
+    def __init__(self, parent = None, selection_mode = QtGui.QTableWidget.SingleSelection,):
         super(Picker, self).__init__(parent)
         
         self._playblasts = []
+        self._selection_mode = selection_mode
         self._find_legacy_playblasts()
         self._tables_by_name = {}
         self._setup_ui()
+
     
     def _setup_ui(self):
         self.currentChanged.connect(self._current_tab_changed)
@@ -169,7 +182,8 @@ class Picker(QtGui.QTabWidget):
                 table = PlayblastTable()
                 table.itemSelectionChanged.connect(self._table_selection_changed)
                 table.refresh.connect(self.refresh)
-
+                if self._selection_mode:
+                    table.setSelectionMode(self._selection_mode)
                 tables[playblast.user_category] = table                
                 self.addTab(table, "Playblasts" if playblast.user_category == "none" else playblast.user_category.title())
 
