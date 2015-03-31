@@ -70,7 +70,16 @@ def load(shelf_path=None):
     # Lookup the tab shelf that we will attach to.
     layout = mel.eval('$tmp=$gShelfTopLevel')
     
-    shelf_names = set()
+    # Store shelf options for restoring later.
+    existing_options = {}
+    for i, name in enumerate(cmds.shelfTabLayout(layout, q=True, childArray=True)):
+        if name in existing_options:
+            cmds.warning('Multiple shelves with name "%s"? This may cause problems.' % name)
+        existing_options[name] = opts = {}
+        for key in 'Name', 'File', 'Load':
+            opts[key] = cmds.optionVar(q="shelf%s%d" % (key, i + 1))
+
+    new_shelves = set()
     
     for shelf_dir in shelf_path:
         try:
@@ -82,7 +91,7 @@ def load(shelf_path=None):
                 continue
             
             shelf_name = file_name[:-4]
-            shelf_names.add(shelf_name)
+            new_shelves.add(shelf_name)
             print '# %s: %s' % (__name__, shelf_name)
         
             # Delete buttons on existing shelves, and create shelves that don't
@@ -145,10 +154,28 @@ def load(shelf_path=None):
                 if context_menu:
                     setup_menu(shelf_button=button_name, button=3, **context_menu)
     
-    # Reset all shelf "options"; Maya will freak out at us if we don't.
+    # Clean up persistant shelf options; Maya (and plugins) will freak out at us if we don't.
     for i, name in enumerate(cmds.shelfTabLayout(layout, q=True, childArray=True)):
-        if name in shelf_names:
-            cmds.optionVar(stringValue=(("shelfName%d" % (i + 1)), shelf_name))
+        if name in new_shelves:
+            cmds.optionVar(stringValue=(("shelfName%d" % (i + 1)), name))
+            cmds.optionVar(stringValue=(("shelfFile%d" % (i + 1)), ''))
+            cmds.optionVar(intValue=(("shelfLoad%d" % (i + 1)), 1)) # Signal that it is loaded.
+            continue
+        opts = existing_options.get(name)
+        if opts:
+            cmds.optionVar(stringValue=(("shelfName%d" % (i + 1)), opts['Name']))
+            cmds.optionVar(stringValue=(("shelfFile%d" % (i + 1)), opts['File']))
+            cmds.optionVar(intValue=(("shelfLoad%d" % (i + 1)), opts['Load']))
+            continue
+        cmds.warning('New shelf "%s" appeared.' % name)
+
+    cmds.optionVar(intValue=('numShelves', i + 1))
+
+    # Finally, we need to save them all to the users' home. If we don't, and
+    # another plugin (e.g. RenderMan) saves its own shelf, then on reload that
+    # will be the only shelf which exists.
+    cmds.saveAllShelves(layout)
+
 
 
 def buttons_from_uuid(uuid):
