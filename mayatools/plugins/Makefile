@@ -1,7 +1,7 @@
 
 MAYA_VERSION = 2014
 
-CFLAGS += -I$(MAYAINCLUDE)
+CFLAGS += -g -I$(MAYAINCLUDE)
 LDFLAGS  += -L$(MAYALIB) -lOpenMaya -lFoundation
 
 UNAME := $(shell uname -s)
@@ -15,7 +15,7 @@ ifeq ($(UNAME),Linux)
 
 	CFLAGS += -DBits64_ -m64 -DUNIX -D_BOOL -DLINUX -DFUNCPROTO -D_GNU_SOURCE \
 	          -DLINUX_64 -fPIC \
-	          -fno-strict-aliasing -DREQUIRE_IOSTREAM -O3 -Wall \
+	          -fno-strict-aliasing -DREQUIRE_IOSTREAM -Wall \
 	          -Wno-multichar -Wno-comment -Wno-sign-compare -funsigned-char \
 	          -pthread
 
@@ -34,7 +34,7 @@ ifeq ($(UNAME),Darwin)
 	EXT = bundle
 
 	CFLAGS += -DCC_GNU_ -DOSMac_ -DOSMacOSX_ -DREQUIRE_IOSTREAM \
-			  -DOSMac_MachO_ -O3 $(ARCH_FLAGS)  -D_LANGUAGE_C_PLUS_PLUS \
+			  -DOSMac_MachO_ $(ARCH_FLAGS)  -D_LANGUAGE_C_PLUS_PLUS \
 			  -include "$(MAYAINCLUDE)/maya/OpenMayaMac.h"
 
 	CXXFLAGS += $(CFLAGS) -fno-gnu-keywords -fpascal-strings
