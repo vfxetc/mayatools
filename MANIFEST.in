@@ -1,1 +1,2 @@
 recursive-include mayatools/art *
+recursive-include mayatools/plugins *

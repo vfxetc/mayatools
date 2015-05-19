@@ -1,4 +1,16 @@
+from subprocess import check_call
+
 from setuptools import setup, find_packages
+from distutils.command.build import build as default_build
+
+
+
+class build(default_build):
+
+    def run(self):
+        check_call(['make'])
+        default_build.run(self)
+
 
 setup(
     name='mayatools',
@@ -13,6 +25,8 @@ setup(
     author_email='mayatools@mikeboers.com',
     license='BSD-3',
     
+    cmdclass={'build': build},
+
     classifiers=[
         'Intended Audience :: Developers',
         'License :: OSI Approved :: BSD License',

@@ -1,0 +1,14 @@
+global proc AEKSNormalLookupTemplate(string $nodeName) {
+    
+	AEswatchDisplay $nodeName;
+	editorTemplate -beginScrollLayout;
+
+	editorTemplate -beginLayout "KSNormalLookup Attributes" -collapse 0;
+	
+	editorTemplate -endLayout;
+
+	AEdependNodeTemplate $nodeName;
+
+	editorTemplate -addExtraControls;
+	editorTemplate -endScrollLayout;
+}

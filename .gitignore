@@ -1,5 +1,4 @@
 # General cruft.
-*.pyc
 .DS_Store
 ._*
 
@@ -11,3 +10,6 @@
 /build
 /dist
 *.egg-info
+*.pyc
+*.so
+*.bundle
