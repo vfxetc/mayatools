@@ -1,18 +1,20 @@
 #include <math.h>
 
-#include <maya/MPxNode.h>
-#include <maya/MIOStream.h>
-#include <maya/MString.h>
-#include <maya/MTypeId.h>
-#include <maya/MPlug.h>
 #include <maya/MDataBlock.h>
 #include <maya/MDataHandle.h>
-#include <maya/MFnNumericAttribute.h>
-#include <maya/MFnTypedAttribute.h>
+#include <maya/MFloatVector.h>
 #include <maya/MFnMesh.h>
 #include <maya/MFnMeshData.h>
-#include <maya/MFloatVector.h>
+#include <maya/MFnMessageAttribute.h>
+#include <maya/MFnNumericAttribute.h>
 #include <maya/MFnPlugin.h>
+#include <maya/MFnTypedAttribute.h>
+#include <maya/MIOStream.h>
+#include <maya/MPlug.h>
+#include <maya/MPlugArray.h>
+#include <maya/MPxNode.h>
+#include <maya/MString.h>
+#include <maya/MTypeId.h>
 
 
 class KSNormalLookup : public MPxNode
@@ -30,7 +32,7 @@ class KSNormalLookup : public MPxNode
 	static  MTypeId id;
 
 	private:
-    static MObject referenceMeshAttr;
+    static MObject shapeMessageAttr;
     static MObject cameraLocationAttr;
     static MObject lookupPointAttr;
     static MObject outNormalAttr;
@@ -43,7 +45,7 @@ class KSNormalLookup : public MPxNode
 MTypeId KSNormalLookup::id(0x8100e);
 
 
-MObject KSNormalLookup::referenceMeshAttr;
+MObject KSNormalLookup::shapeMessageAttr;
 MObject KSNormalLookup::cameraLocationAttr;
 MObject KSNormalLookup::lookupPointAttr;
 MObject KSNormalLookup::outNormalAttr;
@@ -78,6 +80,7 @@ MStatus KSNormalLookup::initialize()
     MStatus status;
     MFnNumericAttribute nAttr; 
     MFnTypedAttribute tAttr;
+    MFnMessageAttribute mAttr;
 
     // This one has a special name that is filled by the sampler.
     lookupPointAttr = nAttr.createPoint("pointWorld", "pw", &status);
@@ -85,9 +88,9 @@ MStatus KSNormalLookup::initialize()
     CHECK_MSTATUS(nAttr.setStorable(false));
     CHECK_MSTATUS(nAttr.setHidden(true));
 
-    referenceMeshAttr = tAttr.create("referenceMesh", "rm", MFnMeshData::kMesh, MObject::kNullObj, &status);
+    shapeMessageAttr = mAttr.create("shapeMessage", "rn", &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
-    CHECK_MSTATUS(tAttr.setStorable(false));
+    CHECK_MSTATUS(mAttr.setStorable(false));
 
     cameraLocationAttr = nAttr.createPoint("cameraLocation", "cl", &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
@@ -103,15 +106,15 @@ MStatus KSNormalLookup::initialize()
     CHECK_MSTATUS(nAttr.setStorable(false));
     CHECK_MSTATUS(nAttr.setWritable(false));
 
-    CHECK_MSTATUS(addAttribute(referenceMeshAttr));
+    CHECK_MSTATUS(addAttribute(shapeMessageAttr));
     CHECK_MSTATUS(addAttribute(cameraLocationAttr));
     CHECK_MSTATUS(addAttribute(lookupPointAttr));
     CHECK_MSTATUS(addAttribute(outNormalAttr));
     CHECK_MSTATUS(addAttribute(outFacingRatioAttr));
 
-    CHECK_MSTATUS(attributeAffects(referenceMeshAttr, outNormalAttr));
+    CHECK_MSTATUS(attributeAffects(shapeMessageAttr, outNormalAttr));
     CHECK_MSTATUS(attributeAffects(lookupPointAttr, outNormalAttr));
-    CHECK_MSTATUS(attributeAffects(referenceMeshAttr, outFacingRatioAttr));
+    CHECK_MSTATUS(attributeAffects(shapeMessageAttr, outFacingRatioAttr));
     CHECK_MSTATUS(attributeAffects(cameraLocationAttr, outFacingRatioAttr));
     CHECK_MSTATUS(attributeAffects(lookupPointAttr, outFacingRatioAttr));
 
@@ -133,11 +136,27 @@ const MPlug&      plug,
     MStatus status = MS::kSuccess;
 
     // Load the mesh.
-    MDataHandle meshData = block.inputValue(referenceMeshAttr, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-    MObject mesh = meshData.asMesh();
-    MFnMesh meshFn(mesh, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
+    // MDataHandle shapeMessageData = block.inputValue(shapeMessageAttr, &status);
+    MPlug shapePlug(thisMObject(), shapeMessageAttr);
+    // CHECK_MSTATUS_AND_RETURN_IT(status);
+
+    MPlugArray connectedPlugs;
+    connectedPlugs.clear();
+    shapePlug.connectedTo(connectedPlugs, true, false);
+
+    MObject shape;
+    if ( connectedPlugs.length() > 0 ) {
+        shape = connectedPlugs[0].node();
+    } else {
+        cerr << "Could not get connection." << endl;
+        return MS::kFailure;
+    }
+
+    MFnMesh meshFn(shape, &status);
+    if (status != MS::kSuccess) {
+        cerr << shape.apiTypeStr() << endl;
+        CHECK_MSTATUS_AND_RETURN_IT(status);
+    }
 
     // Load the lookupPoint.
     MFloatVector& lookupPoint = block.inputValue(lookupPointAttr, &status).asFloatVector();
