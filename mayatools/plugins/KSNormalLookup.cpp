@@ -39,10 +39,7 @@ class KSNormalLookup : public MPxNode
     static MObject outFacingRatioAttr;
 };
 
-// NOTE: We are overloading the interpShader ID, which is not good.
-// I would love to use 'KSNL', but we've already started using this
-// internally.
-MTypeId KSNormalLookup::id(0x8100e);
+MTypeId KSNormalLookup::id('KSNL');
 
 
 MObject KSNormalLookup::shapeMessageAttr;
@@ -135,10 +132,15 @@ const MPlug&      plug,
 
     MStatus status = MS::kSuccess;
 
+    // In the first version we used a kMesh attribute, which segfaulted inside
+    // Shave when it was updating textures. We never figured out why. Instead,
+    // we moved to a message attribute, and grab the shape ourselves.
+
     // Grab the shape from what is connected to the shapePlug.
     MObject shape;
     MPlug shapePlug(thisMObject(), shapeMessageAttr);
     if (!shapePlug.isConnected()) {
+        // Reasonable failure case, so no API error message nessesary.
         return MS::kFailure;
     }
     MPlugArray shapeSourcePlugs;
@@ -147,7 +149,7 @@ const MPlug&      plug,
     if (!shapeSourcePlugs.length()) {
         CHECK_MSTATUS_AND_RETURN_IT(MS::kFailure);
     }
-    shape = shapeSourcePlugs[0].node();
+    shape = shapeSourcePlugs[0].node(); // There will only ever be one.
 
     // Grab the mesh from that shape.
     MFnMesh meshFn(shape, &status);
@@ -155,7 +157,10 @@ const MPlug&      plug,
 
     // Load the lookupPoint.
     MFloatVector& lookupPoint = block.inputValue(lookupPointAttr, &status).asFloatVector();
-    CHECK_MSTATUS_AND_RETURN_IT(status);
+    if (status != MS::kSuccess) {
+        // Reasonable failure case, so no API error message nessesary.
+        return status;
+    }
 
     // Grab the closest normal to that point.
     MVector closestNormal;
@@ -170,8 +175,6 @@ const MPlug&      plug,
     float dot = (lookupToCamera.x * closestNormal.x) + 
                 (lookupToCamera.y * closestNormal.y) +
                 (lookupToCamera.z * closestNormal.z);
-
-
 
     // Write normal.
     MDataHandle outNormalHandle = block.outputValue(outNormalAttr, &status);
