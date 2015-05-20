@@ -135,28 +135,23 @@ const MPlug&      plug,
 
     MStatus status = MS::kSuccess;
 
-    // Load the mesh.
-    // MDataHandle shapeMessageData = block.inputValue(shapeMessageAttr, &status);
-    MPlug shapePlug(thisMObject(), shapeMessageAttr);
-    // CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    MPlugArray connectedPlugs;
-    connectedPlugs.clear();
-    shapePlug.connectedTo(connectedPlugs, true, false);
-
+    // Grab the shape from what is connected to the shapePlug.
     MObject shape;
-    if ( connectedPlugs.length() > 0 ) {
-        shape = connectedPlugs[0].node();
-    } else {
-        cerr << "Could not get connection." << endl;
+    MPlug shapePlug(thisMObject(), shapeMessageAttr);
+    if (!shapePlug.isConnected()) {
         return MS::kFailure;
     }
-
-    MFnMesh meshFn(shape, &status);
-    if (status != MS::kSuccess) {
-        cerr << shape.apiTypeStr() << endl;
-        CHECK_MSTATUS_AND_RETURN_IT(status);
+    MPlugArray shapeSourcePlugs;
+    shapeSourcePlugs.clear();
+    shapePlug.connectedTo(shapeSourcePlugs, true, false);
+    if (!shapeSourcePlugs.length()) {
+        CHECK_MSTATUS_AND_RETURN_IT(MS::kFailure);
     }
+    shape = shapeSourcePlugs[0].node();
+
+    // Grab the mesh from that shape.
+    MFnMesh meshFn(shape, &status);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
 
     // Load the lookupPoint.
     MFloatVector& lookupPoint = block.inputValue(lookupPointAttr, &status).asFloatVector();
