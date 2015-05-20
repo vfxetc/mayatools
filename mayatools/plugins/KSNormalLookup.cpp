@@ -75,9 +75,9 @@ void* KSNormalLookup::creator()
 
 MStatus KSNormalLookup::initialize()
 {
-    MStatus             status;
+    MStatus status;
     MFnNumericAttribute nAttr; 
-    MFnTypedAttribute   typedAttr;
+    MFnTypedAttribute tAttr;
 
     // This one has a special name that is filled by the sampler.
     lookupPointAttr = nAttr.createPoint("pointWorld", "pw", &status);
@@ -85,20 +85,20 @@ MStatus KSNormalLookup::initialize()
     CHECK_MSTATUS(nAttr.setStorable(false));
     CHECK_MSTATUS(nAttr.setHidden(true));
 
-    referenceMeshAttr = typedAttr.create("referenceMesh", "rm", MFnMeshData::kMesh, MObject::kNullObj, &status);
+    referenceMeshAttr = tAttr.create("referenceMesh", "rm", MFnMeshData::kMesh, MObject::kNullObj, &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
-    CHECK_MSTATUS(typedAttr.setStorable(false));
+    CHECK_MSTATUS(tAttr.setStorable(false));
 
     cameraLocationAttr = nAttr.createPoint("cameraLocation", "cl", &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
     CHECK_MSTATUS(nAttr.setStorable(false));
 
-    outNormalAttr = nAttr.createColor( "outNormal", "on", &status);
+    outNormalAttr = nAttr.createColor("outNormal", "on", &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
     CHECK_MSTATUS(nAttr.setStorable(false));
     CHECK_MSTATUS(nAttr.setWritable(false));
 
-    outFacingRatioAttr = nAttr.create( "outFacingRatio", "or", MFnNumericData::kFloat);
+    outFacingRatioAttr = nAttr.create("outFacingRatio", "or", MFnNumericData::kFloat);
     CHECK_MSTATUS_AND_RETURN_IT(status);
     CHECK_MSTATUS(nAttr.setStorable(false));
     CHECK_MSTATUS(nAttr.setWritable(false));
