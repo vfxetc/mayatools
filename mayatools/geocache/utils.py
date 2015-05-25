@@ -265,6 +265,10 @@ def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False)
 
         if as_abc:
 
+            if not cmds.pluginInfo('AbcExport', q=True, loaded=True):
+                print 'Loading AbcExport plugin...'
+                cmds.loadPlugin('AbcExport')
+
             # We need to grab the shapes from the transforms.
             shapes = []
             transforms = []
