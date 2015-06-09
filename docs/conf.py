@@ -127,16 +127,14 @@ pygments_style = 'sphinx'
 
 
 # -- Options for HTML output ---------------------------------------------------
-
-local_theme_path = os.path.abspath('../../docs/_themes/westernx')
-if os.path.exists(local_theme_path):
-    sys.path.append(local_theme_path)
-    html_theme_path = [local_theme_path]
+try:
+    import sphinx_westernx_theme
+    html_theme_path = sphinx_westernx_theme.get_html_path()
     html_theme = 'westernx'
     html_theme_options = {
         'index_logo': None,
     }
-else:
+except ImportError:
     html_theme = 'default'
 
 # The name for this set of Sphinx documents.  If None, it defaults to
