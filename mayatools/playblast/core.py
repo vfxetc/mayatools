@@ -1,3 +1,5 @@
+import tempfile
+
 from maya import cmds
 
 from .. import context
@@ -48,4 +50,18 @@ def playblast(**kwargs):
         with context.command(cmds.camera, camera, edit=True, **(settings['camera'] if camera else {})):
             with context.command(cmds.currentUnit, linear='cm', time='film'):
                 return cmds.playblast(**kwargs)
+
+
+def screenshot(frame=None, **kwargs):
+    path = tempfile.NamedTemporaryFile(suffix=".jpg", prefix="screenshot.", delete=False).name
+    frame = cmds.currentTime(q=True) if frame is None else frame
+    playblast(
+        frame=[frame],
+        format='image',
+        completeFilename=path,
+        viewer=False,
+        p=100,
+        framePadding=4, # ??
+    )
+    return path
 

@@ -6,6 +6,7 @@ import traceback
 
 from maya import cmds, mel
 
+from mayatools.playblast import screenshot
 from sgfs import SGFS
 from sgfs.commands.utils import parse_spec
 import metatools.deprecate
@@ -138,7 +139,14 @@ def main():
     exporter = Exporter()
     if args.publish_link:
         link = parse_spec(SGFS(), args.publish_link)
-        exporter.publish(link, name, dict(to_cache=to_cache, as_abc=as_abc))
+
+        # take a screenshot (on OS X)
+        try:
+            thumbnail_path = screenshot()
+        except RuntimeError:
+            thumbnail_path = None
+
+        exporter.publish(link, name, dict(to_cache=to_cache, as_abc=as_abc), thumbnail_path=thumbnail_path)
     else:
         directory = args.out_dir or os.path.join(args.scene, '..', 'data', 'geocaches', name)
         exporter.export(directory=directory, path=directory, to_cache=to_cache, as_abc=as_abc)
