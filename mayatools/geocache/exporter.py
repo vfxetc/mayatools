@@ -148,7 +148,7 @@ def main():
 
         exporter.publish(link, name, dict(to_cache=to_cache, as_abc=as_abc), thumbnail_path=thumbnail_path)
     else:
-        directory = args.out_dir or os.path.join(args.scene, '..', 'data', 'geocaches', name)
+        directory = args.out_dir or os.path.join(args.scene, '..', 'data', 'geo_cache', name)
         exporter.export(directory=directory, path=directory, to_cache=to_cache, as_abc=as_abc)
 
     log.info('DONE')

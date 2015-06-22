@@ -3,29 +3,46 @@ from __future__ import absolute_import
 import contextlib
 import os
 import re
-import functools
-
-from uitools.qt import QtCore, QtGui, Qt
+import traceback
 
 from maya import cmds, mel
 
-import sgfs.ui.scene_name.widget as scene_name
+from sgfs import SGFS
+from sgfs.commands.utils import parse_spec
 import sgpublish.exporter.maya
-import sgpublish.exporter.ui.publish.maya
-import sgpublish.exporter.ui.tabwidget
-import sgpublish.exporter.ui.workarea
-import sgpublish.uiutils
-from sgpublish.exporter.ui.publish.generic import PublishSafetyError
 
-import mayatools.context
-from mayatools import downgrade
-from mayatools import context
-from mayatools.transforms import transfer_global_transforms
-
+from .. import context
+from .. import downgrade
+from ..transforms import transfer_global_transforms
+from ..playblast import screenshot
 
 # Default Nuke Camera Vert Aperture
 DNCVA = 18.672
 MODULUS = 25.39999962
+
+
+def run():
+    import warnings
+    warnings.warn('exporter.run moved to exporterui')
+    from .exporterui import run
+    run()
+
+
+def get_nodes_to_export(start):
+
+    # start with all descendents
+    to_export = set(cmds.listRelatives(start, allDescendents=True, fullPath=True) or ())
+
+    # recursively get parents from start
+    to_check = [start]
+    while to_check:
+        node = to_check.pop(0)
+        if node in to_export:
+            continue
+        to_export.add(node)
+        to_check.extend(cmds.listRelatives(node, allParents=True, fullPath=True) or ())
+    
+    return list(to_export)
 
 
 class CameraExporter(sgpublish.exporter.maya.Exporter):
@@ -58,7 +75,7 @@ class CameraExporter(sgpublish.exporter.maya.Exporter):
         
         return self._export(directory, path, **kwargs)
         
-    def _export(self, directory, path, camera, selection, bake_to_world_space):
+    def _export(self, directory, path, camera, bake_to_world_space):
         
         export_path = path
         print '# Exporting camera to %s' % path
@@ -71,6 +88,8 @@ class CameraExporter(sgpublish.exporter.maya.Exporter):
         if maya_version > 2011:
             export_path = os.path.splitext(path)[0] + ('.%d.ma' % maya_version)
         
+        selection = [] if bake_to_world_space else get_nodes_to_export(camera)
+
         with contextlib.nested(context.delete(), context.selection(), context.attrs({
             camera + '.horizontalFilmOffset': 0,
             camera + '.verticalFilmOffset': 0,
@@ -202,188 +221,87 @@ class CameraExporter(sgpublish.exporter.maya.Exporter):
         fh.write('}\n')
 
 
-class Dialog(QtGui.QDialog):
-    
-    def __init__(self):
-        super(Dialog, self).__init__()
-        self._setup_ui()
-    
-    def _setup_ui(self):
-        
-        self.setWindowTitle("Camera Export")
-        self.setLayout(QtGui.QVBoxLayout())
-        self.setSizePolicy(QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Fixed)
-        
-        camera_row = QtGui.QHBoxLayout()
-        camera_row.setSpacing(2)
-        self.layout().addLayout(camera_row)
-        
-        self._cameras = QtGui.QComboBox()
-        camera_row.addWidget(self._cameras)
-        self._cameras.activated.connect(self._on_cameras_changed)
-        
-        button = QtGui.QPushButton("Reload")
-        button.clicked.connect(self._on_reload)
-        button.setFixedHeight(self._cameras.sizeHint().height())
-        button.setFixedWidth(button.sizeHint().width())
-        camera_row.addWidget(button)
 
-        box = QtGui.QGroupBox("Manifest Summary")
-        self.layout().addWidget(box)
-        box.setLayout(QtGui.QVBoxLayout())
-        self._summary = QtGui.QLabel("Select a camera.")
-        box.layout().addWidget(self._summary)
-        box.setSizePolicy(QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Fixed)
-        
-        box = QtGui.QGroupBox("Options")
-        self.layout().addWidget(box)
-        box.setLayout(QtGui.QVBoxLayout())
-        self._worldSpaceBox = QtGui.QCheckBox("Bake to World Space (for debugging)")
-        box.layout().addWidget(self._worldSpaceBox)
 
-        self._exporter = CameraExporter()
-        self._exporter_widget = sgpublish.exporter.ui.tabwidget.Widget()
-        self.layout().addWidget(self._exporter_widget)
-        
-        # SGPublishes.
-        tab = sgpublish.exporter.ui.publish.maya.Widget(self._exporter)
-        tab.beforeScreenshot.connect(lambda *args: self.hide())
-        tab.afterScreenshot.connect(lambda *args: self.show())
-        self._exporter_widget.addTab(tab, "Publish to Shotgun")
+def main():
 
-        # Work area.
-        tab = sgpublish.exporter.ui.workarea.Widget(self._exporter, {
-            'directory': 'scenes/camera',
-            'sub_directory': '',
-            'extension': '.ma',
-            'warning': self._warning,
-            'error': self._warning,
-        })
-        self._exporter_widget.addTab(tab, "Export to Work Area")
-        
-        button_row = QtGui.QHBoxLayout()
-        button_row.addStretch()
-        self.layout().addLayout(button_row)
-        
-        self._button = button = QtGui.QPushButton("Export")
-        button.clicked.connect(self._on_export)
-        button_row.addWidget(button)
-        
-        self._populate_cameras()
-    
-    def _on_reload(self, *args):
-        self._populate_cameras()
-    
-    def _populate_cameras(self):
-        previous = str(self._cameras.currentText())
-        selection = set(cmds.ls(sl=True, type='transform') or ())
-        self._cameras.clear()
-        for camera in cmds.ls(type="camera"):
-            transform = cmds.listRelatives(camera, parent=True, fullPath=True)[0]
-            self._cameras.addItem(transform, (transform, camera))
-            if (previous and previous == transform) or (not previous and transform in selection):
-                self._cameras.setCurrentIndex(self._cameras.count() - 1)
-        self._update_status()
-    
-    def _on_cameras_changed(self, *args):
-        self._update_status()
-    
-    def _nodes_to_export(self):
-        
-        transform = str(self._cameras.currentText())
-        print 'transform', repr(transform)
-        export = set(cmds.listRelatives(transform, allDescendents=True, fullPath=True) or ())
-        
-        parents = [transform]
-        while parents:
-            parent = parents.pop(0)
-            if parent in export:
-                continue
-            export.add(parent)
-            parents.extend(cmds.listRelatives(parent, allParents=True, fullPath=True) or ())
-        
-        return export
-        
-    def _update_status(self):
-        
-        counts = {}
-        for node in self._nodes_to_export():
-            type_ = cmds.nodeType(node)
-            counts[type_] = counts.get(type_, 0) + 1
-        
-        self._summary.setText('\n'.join('%dx %s' % (c, n) for n, c in sorted(counts.iteritems())))
-        
-    def _on_export(self, *args):
+    import argparse
+    import logging
+    log = logging.getLogger(__name__)
 
-        # Other tools don't like cameras named the same as their transform,
-        # so this is a good place to warn about it.
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--world', action='store_true')
+    parser.add_argument('--no-nuke', action='store_true')
 
-        transform, camera = self._cameras.itemData(self._cameras.currentIndex()).toPyObject()
-        transform_name = transform.rsplit('|', 1)[-1]
-        camera_name = camera.rsplit('|', 1)[-1]
-        if transform_name == camera_name:
-            res = QtGui.QMessageBox.warning(self, "Camera Name Collision",
-                "The selected camera and its transform have the same name, "
-                "which can cause issues with other tools.\n\nContinue anyways?",
-                "Abort", "Continue")
-            if not res:
-                return
+    parser.add_argument('-s', '--start', type=int)
+    parser.add_argument('-e', '--end', type=int)
+    parser.add_argument('-d', '--out-dir')
 
-        selection = [] if self._worldSpaceBox.isChecked() else list(self._nodes_to_export())
+    parser.add_argument('--publish-link')
+    parser.add_argument('--publish-name')
 
+    parser.add_argument('-l', '--list-cameras', action='store_true')
+    parser.add_argument('scene')
+    parser.add_argument('camera', nargs='?')
+    args = parser.parse_args()
+
+    log.info('initializing Maya')
+    import maya.standalone
+    maya.standalone.initialize()
+
+    log.info('loading file')
+    cmds.file(args.scene, open=True)
+    log.info('done loading file')
+
+    cameras = cmds.ls(args.camera or '*', type='camera', long=True) or ()
+    if args.list_cameras:
+        print '\n'.join(cameras)
+        return
+
+    if args.camera:
+        if not cameras:
+            log.error('no cameras matching %s' % args.camera)
+            exit(1)
+        camera = cameras[0]
+        if len(cameras) > 1:
+            log.warning('more than one camera matching %s; taking %s' % (args.camera, camera))
+    else:
+        cameras = [c for c in cameras if c.split('|')[1] not in ('top', 'side', 'persp', 'front')]
+        if not cameras:
+            log.error('no non-default cameras')
+            exit(1)
+        camera = cameras[0]
+        if len(cameras) > 1:
+            log.warning('more than one non-default camera; taking %s' % camera)
+
+    log.info('will export %s' % camera)
+
+    name = args.publish_name or os.path.splitext(os.path.basename(args.scene))[0]
+    exporter = CameraExporter()
+    if args.publish_link:
+        link = parse_spec(SGFS(), args.publish_link)
+        print link
+
+        # take a screenshot (on OS X)
         try:
-            publisher = self._exporter_widget.export(
-                camera=camera,
-                selection=selection,
-                bake_to_world_space=self._worldSpaceBox.isChecked()
-            )
-        except PublishSafetyError:
-            return
+            thumbnail_path = screenshot()
+        except RuntimeError:
+            thumbnail_path = None
 
-        if publisher:
-            sgpublish.uiutils.announce_publish_success(publisher)
+        exporter.publish(link, name, dict(camera=camera, bake_to_world_space=args.world), thumbnail_path=thumbnail_path)
+    else:
+        directory = args.out_dir or os.path.join(args.scene, '..', 'data', 'camera', name)
+        exporter.export(directory=directory, path=directory, camera=camera, bake_to_world_space=args.world)
 
-        self.close()
-        
-    def _warning(self, message):
-        cmds.warning(message)
-
-    def _error(self, message):
-        cmds.confirmDialog(title='Scene Name Error', message=message, icon='critical')
-        cmds.error(message)
+    log.info('DONE')
 
 
-def __before_reload__():
-    if dialog:
-        dialog.close()
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as e:
+        traceback.print_exc()
+        os._exit(1)
+    else:
+        os._exit(0)
 
-dialog = None
-
-def run():
-    
-    global dialog
-    
-    if dialog:
-        dialog.close()
-    
-    # Be cautious if the scene was never saved
-    filename = cmds.file(query=True, sceneName=True)
-    if not filename:
-        res = QtGui.QMessageBox.warning(None, 'Unsaved Scene', 'This scene has not beed saved. Continue anyways?',
-            QtGui.QMessageBox.Yes | QtGui.QMessageBox.No,
-            QtGui.QMessageBox.No
-        )
-        if res & QtGui.QMessageBox.No:
-            return
-    
-    workspace = cmds.workspace(q=True, rootDirectory=True)
-    if filename and not filename.startswith(workspace):
-        res = QtGui.QMessageBox.warning(None, 'Mismatched Workspace', 'This scene is not from the current workspace. Continue anyways?',
-            QtGui.QMessageBox.Yes | QtGui.QMessageBox.No,
-            QtGui.QMessageBox.No
-        )
-        if res & QtGui.QMessageBox.No:
-            return
-    
-    dialog = Dialog()    
-    dialog.show()
