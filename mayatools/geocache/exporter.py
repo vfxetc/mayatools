@@ -89,7 +89,7 @@ class Exporter(sgpublish.exporter.maya.Exporter):
                 export_cache(*args, as_abc=as_abc)
 
 
-def main():
+def main(argv=None):
 
     import argparse
     import logging
@@ -108,7 +108,7 @@ def main():
     parser.add_argument('-l', '--list-sets', action='store_true')
     parser.add_argument('scene')
     parser.add_argument('cache_sets', nargs='*')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     log.info('initializing Maya')
     import maya.standalone

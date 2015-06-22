@@ -223,7 +223,7 @@ class CameraExporter(sgpublish.exporter.maya.Exporter):
 
 
 
-def main():
+def main(argv=None):
 
     import argparse
     import logging
@@ -243,7 +243,7 @@ def main():
     parser.add_argument('-l', '--list-cameras', action='store_true')
     parser.add_argument('scene')
     parser.add_argument('camera', nargs='?')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     log.info('initializing Maya')
     import maya.standalone
