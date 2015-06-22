@@ -15,7 +15,7 @@ import sgpublish.exporter.ui.workarea
 import sgpublish.uiutils
 from sgpublish.exporter.ui.publish.generic import PublishSafetyError
 
-from .exporter import cache_name_from_cache_set
+from .exporter import Exporter, cache_name_from_cache_set
 
 
 class GroupCheckBox(QtGui.QCheckBox):
