@@ -284,7 +284,7 @@ def main(argv=None):
 
         # take a screenshot (on OS X)
         try:
-            thumbnail_path = screenshot()
+            thumbnail_path = None #screenshot()
         except RuntimeError:
             thumbnail_path = None
 
