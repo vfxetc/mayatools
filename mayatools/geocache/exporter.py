@@ -104,6 +104,7 @@ def main(argv=None):
 
     parser.add_argument('--publish-link')
     parser.add_argument('--publish-name')
+    parser.add_argument('--publish-thumbnail')
 
     parser.add_argument('-l', '--list-sets', action='store_true')
     parser.add_argument('scene')
@@ -140,12 +141,9 @@ def main(argv=None):
     if args.publish_link:
         link = parse_spec(SGFS(), args.publish_link)
 
-        # take a screenshot (on OS X)
-        try:
-            thumbnail_path = None #screenshot()
-        except RuntimeError:
-            thumbnail_path = None
-
+        # TODO: take a screenshot (on OS X) via screenshot
+        thumbnail_path = args.publish_thumbnail
+        
         exporter.publish(link, name, dict(to_cache=to_cache, as_abc=as_abc), thumbnail_path=thumbnail_path)
     else:
         directory = args.out_dir or os.path.join(args.scene, '..', 'data', 'geo_cache', name)

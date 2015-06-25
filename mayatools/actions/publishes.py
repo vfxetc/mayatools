@@ -80,6 +80,7 @@ def republish(entity_type, selected_ids, type_name, type_code):
                 args=[(
                     '--publish-link', '%(type)s:%(id)d' % publish['sg_link'],
                     '--publish-name', publish['code'],
+                    '--publish-thumbnail', thumbnail,
                     maya_scene,
                 )],
                 name=future_name,
@@ -93,6 +94,7 @@ def republish(entity_type, selected_ids, type_name, type_code):
                 args=[(
                     '--publish-link', '%(type)s:%(id)d' % publish['sg_link'],
                     '--publish-name', publish['code'],
+                    '--publish-thumbnail', thumbnail,
                     maya_scene,
                 )],
                 name=future_name,

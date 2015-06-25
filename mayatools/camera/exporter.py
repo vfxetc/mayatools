@@ -239,6 +239,7 @@ def main(argv=None):
 
     parser.add_argument('--publish-link')
     parser.add_argument('--publish-name')
+    parser.add_argument('--publish-thumbnail')
 
     parser.add_argument('-l', '--list-cameras', action='store_true')
     parser.add_argument('scene')
@@ -282,11 +283,8 @@ def main(argv=None):
         link = parse_spec(SGFS(), args.publish_link)
         print link
 
-        # take a screenshot (on OS X)
-        try:
-            thumbnail_path = None #screenshot()
-        except RuntimeError:
-            thumbnail_path = None
+        # TODO: take a screenshot (on OS X) via screenshot
+        thumbnail_path = args.publish_thumbnail
 
         exporter.publish(link, name, dict(camera=camera, bake_to_world_space=args.world), thumbnail_path=thumbnail_path)
     else:
