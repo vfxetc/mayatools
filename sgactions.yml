@@ -1,0 +1,42 @@
+
+-
+    entrypoint: mayatools.actions.publishes:republish_scene
+    title: "Publish: Republish as Scene"
+    entity_types:
+        - PublishEvent
+    list_order: 33
+    rich:
+        heading: "Publish"
+        title: "Republish as Scene"
+        icon: arrow-switch
+        filter: ['PublishEvent.sg_type', 'in', ['maya_geocache']]
+    selection_required: true
+
+
+-
+    entrypoint: mayatools.actions.publishes:republish_geocache
+    title: "Publish: Republish as Geocache"
+    entity_types:
+        - PublishEvent
+    list_order: 34
+    rich:
+        heading: "Publish"
+        title: "Republish as Geocache"
+        icon: arrow-switch
+        filter: ['PublishEvent.sg_type', 'in', ['maya_scene']]
+    selection_required: true
+
+
+-
+    entrypoint: mayatools.actions.publishes:republish_camera
+    title: "Publish: Republish as Camera"
+    entity_types:
+        - PublishEvent
+    list_order: 35
+    rich:
+        heading: "Publish"
+        title: "Republish as Camera"
+        icon: arrow-switch
+        filter: ['PublishEvent.sg_type', 'in', ['maya_geocache', 'maya_scene']]
+    selection_required: true
+
