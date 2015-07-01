@@ -68,10 +68,10 @@ def default_constructor(maya_menu, actions=None):
     return res
 
 
-def action_dispatch(entrypoint=None, python=None, **kwargs):
+def action_dispatch(entrypoint=None, python=None, reload=None, **kwargs):
     with ticket_ui_context():
         if entrypoint is not None:
-            func = resolve_entrypoint(entrypoint)
+            func = resolve_entrypoint(entrypoint, reload=reload)
             func(*(kwargs.get('args') or ()), **(kwargs.get('kwargs') or {}))
         elif python is not None:
             eval(compile(python, '<menu action>', 'exec'), kwargs)
