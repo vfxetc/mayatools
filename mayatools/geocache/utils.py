@@ -103,7 +103,14 @@ def iter_existing_cache_connections():
 
     cache_nodes = cmds.ls(type='cacheFile') or []
     for cache_node in cache_nodes:
-        cache_path = cmds.cacheFile(cache_node, q=True, fileName=True)[0]
+
+        cache_paths = cmds.cacheFile(cache_node, q=True, fileName=True)
+        if not cache_paths:
+            dir_ = cmds.getAttr('%s.cachePath' % cache_node)
+            name = cmds.getAttr('%s.cacheName' % cache_node)
+            cmds.warning(('cacheNode %s does not exist: %s/%s' % (cache_node, dir_, name)).replace('//', '/'))
+            continue
+        cache_path = cache_paths[0]
             
         ## Identify what it is connected to.
             
