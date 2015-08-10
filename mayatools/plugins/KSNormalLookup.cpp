@@ -16,6 +16,7 @@
 #include <maya/MString.h>
 #include <maya/MTypeId.h>
 
+#include "normal_raster/rendercontext.h"
 
 class KSNormalLookup : public MPxNode
 {

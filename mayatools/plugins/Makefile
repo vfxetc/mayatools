@@ -1,7 +1,7 @@
 
 MAYA_VERSION = 2014
-
-CFLAGS += -g -I$(MAYAINCLUDE)
+GLM_INCLUDE := /usr/local/vee/opt/glm/include
+CFLAGS += -g -I$(MAYAINCLUDE) -I$(GLM_INCLUDE)
 LDFLAGS  += -L$(MAYALIB) -lOpenMaya -lFoundation
 
 UNAME := $(shell uname -s)
@@ -59,7 +59,8 @@ endif
 PLUGIN_NAMES = KSNormalLookup
 PLUGINS      = $(PLUGIN_NAMES:%=%.$(EXT))
 
-
+EXTRA_SRCS  := $(wildcard normal_raster/*.cpp)
+EXTRA_OBJS  := $(EXTRA_SRCS:%.cpp=%.o)
 
 
 .PHONY: build clean
@@ -67,7 +68,7 @@ PLUGINS      = $(PLUGIN_NAMES:%=%.$(EXT))
 
 build: $(PLUGINS)
 
-%.$(EXT): %.o
+%.$(EXT): %.o $(EXTRA_OBJS)
 	g++ -shared $(LDFLAGS) $^ -o $@
 
 %.o: %.cpp
