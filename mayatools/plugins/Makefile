@@ -1,7 +1,7 @@
 
 MAYA_VERSION = 2014
 GLM_INCLUDE := /usr/local/vee/opt/glm/include
-CFLAGS += -g -I$(MAYAINCLUDE) -I$(GLM_INCLUDE)
+CFLAGS += -g -I$(MAYAINCLUDE) -I$(GLM_INCLUDE) -DKSNORMAL_DEBUG
 LDFLAGS  += -L$(MAYALIB) -lOpenMaya -lFoundation
 
 UNAME := $(shell uname -s)

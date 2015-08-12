@@ -5,6 +5,7 @@
 #include <maya/MFloatVector.h>
 #include <maya/MFnMesh.h>
 #include <maya/MFnMeshData.h>
+#include <maya/MFnUnitAttribute.h>
 #include <maya/MFnMessageAttribute.h>
 #include <maya/MFnNumericAttribute.h>
 #include <maya/MFnPlugin.h>
@@ -17,6 +18,7 @@
 #include <maya/MItMeshPolygon.h>
 #include <maya/MPointArray.h>
 #include <maya/MGlobal.h>
+#include <maya/MTime.h>
 
 #include <glm/glm.hpp>
 
@@ -49,11 +51,13 @@ class KSNormalLookup : public MPxNode
     static MObject lookupPointAttr;
     static MObject cachSizeAttr;
     static MObject lookupUVAttr;
+    static MObject timeAttr;
     static MObject outNormalAttr;
     static MObject outFacingRatioAttr;
 
     NormalRaster::RenderContext m_normal_raster;
     int m_prev_cache_size;
+    float m_prev_time;
 };
 
 MTypeId KSNormalLookup::id('KSNL');
@@ -64,6 +68,7 @@ MObject KSNormalLookup::cameraLocationAttr;
 MObject KSNormalLookup::lookupPointAttr;
 MObject KSNormalLookup::cachSizeAttr;
 MObject KSNormalLookup::lookupUVAttr;
+MObject KSNormalLookup::timeAttr;
 MObject KSNormalLookup::outNormalAttr;
 MObject KSNormalLookup::outFacingRatioAttr;
 
@@ -74,7 +79,7 @@ void KSNormalLookup::postConstructor()
 }
 
 
-KSNormalLookup::KSNormalLookup() : m_prev_cache_size(-1)
+KSNormalLookup::KSNormalLookup() : m_prev_cache_size(-1), m_prev_time(0)
 {
 }
 
@@ -97,6 +102,7 @@ MStatus KSNormalLookup::initialize()
     MFnNumericAttribute nAttr; 
     MFnTypedAttribute tAttr;
     MFnMessageAttribute mAttr;
+    MFnUnitAttribute uAttr;
 
     // This one has a special name that is filled by the sampler.
     lookupPointAttr = nAttr.createPoint("pointWorld", "pw", &status);
@@ -105,15 +111,22 @@ MStatus KSNormalLookup::initialize()
     CHECK_MSTATUS(nAttr.setHidden(true));
 
     // Implicit shading network attributes
-    MObject child1 = nAttr.create( "uCoord", "u", MFnNumericData::kFloat);
-    MObject child2 = nAttr.create( "vCoord", "v", MFnNumericData::kFloat);
-    lookupUVAttr = nAttr.create( "uvCoord", "uv", child1, child2);
-    CHECK_MSTATUS( nAttr.setKeyable(true) );
-    CHECK_MSTATUS( nAttr.setStorable(false) );
-    CHECK_MSTATUS( nAttr.setReadable(true) );
-    CHECK_MSTATUS( nAttr.setWritable(true) );
-    CHECK_MSTATUS( nAttr.setHidden(true) );
+    MObject child1 = nAttr.create("uCoord", "u", MFnNumericData::kFloat);
+    MObject child2 = nAttr.create("vCoord", "v", MFnNumericData::kFloat);
+    lookupUVAttr = nAttr.create("uvCoord", "uv", child1, child2);
+    CHECK_MSTATUS(nAttr.setKeyable(true));
+    CHECK_MSTATUS(nAttr.setStorable(false));
+    CHECK_MSTATUS(nAttr.setReadable(true));
+    CHECK_MSTATUS(nAttr.setWritable(true));
+    CHECK_MSTATUS(nAttr.setHidden(true));
 
+    timeAttr = uAttr.create( "time", "tm", MFnUnitAttribute::kTime, 0.0, &status);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+    CHECK_MSTATUS(uAttr.setKeyable(true));
+    CHECK_MSTATUS(uAttr.setStorable(false));
+    CHECK_MSTATUS(uAttr.setReadable(true));
+    CHECK_MSTATUS(uAttr.setWritable(true));
+    //CHECK_MSTATUS(uAttr.setHidden(true));
 
     shapeMessageAttr = mAttr.create("shapeMessage", "rn", &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
@@ -123,7 +136,7 @@ MStatus KSNormalLookup::initialize()
     CHECK_MSTATUS_AND_RETURN_IT(status);
     CHECK_MSTATUS(nAttr.setStorable(false));
 
-    cachSizeAttr = nAttr.create("cachSize", "sz", MFnNumericData::kInt, 256, &status);
+    cachSizeAttr = nAttr.create("cachSize", "sz", MFnNumericData::kInt, 1024, &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
     CHECK_MSTATUS(nAttr.setStorable(false));
     CHECK_MSTATUS(nAttr.setMin(0));
@@ -143,6 +156,7 @@ MStatus KSNormalLookup::initialize()
     CHECK_MSTATUS(addAttribute(cachSizeAttr));
     CHECK_MSTATUS(addAttribute(lookupPointAttr));
     CHECK_MSTATUS(addAttribute(lookupUVAttr));
+    CHECK_MSTATUS(addAttribute(timeAttr));
     CHECK_MSTATUS(addAttribute(outNormalAttr));
     CHECK_MSTATUS(addAttribute(outFacingRatioAttr));
 
@@ -150,12 +164,14 @@ MStatus KSNormalLookup::initialize()
     CHECK_MSTATUS(attributeAffects(lookupPointAttr, outNormalAttr));
     CHECK_MSTATUS(attributeAffects(lookupUVAttr, outNormalAttr));
     CHECK_MSTATUS(attributeAffects(cachSizeAttr, outNormalAttr));
+    CHECK_MSTATUS(attributeAffects(timeAttr, outNormalAttr));
 
     CHECK_MSTATUS(attributeAffects(shapeMessageAttr, outFacingRatioAttr));
     CHECK_MSTATUS(attributeAffects(cameraLocationAttr, outFacingRatioAttr));
     CHECK_MSTATUS(attributeAffects(lookupPointAttr, outFacingRatioAttr));
     CHECK_MSTATUS(attributeAffects(lookupUVAttr, outFacingRatioAttr));
     CHECK_MSTATUS(attributeAffects(cachSizeAttr, outFacingRatioAttr));
+    CHECK_MSTATUS(attributeAffects(timeAttr, outFacingRatioAttr));
 
     return MS::kSuccess;
 }
@@ -309,14 +325,17 @@ const MPlug&      plug,
         return status;
     }
 
+    float time = (float)block.inputValue(timeAttr, &status).asTime().as(MTime::kSeconds);
+
     MVector closestNormal;
     float2 & uv = block.inputValue( lookupUVAttr ).asFloat2();
     int cache_size = block.inputValue(cachSizeAttr).asInt();
 
     if (cache_size > 0) {
 
-        if (cache_size != m_prev_cache_size) {
+        if (cache_size != m_prev_cache_size || time != m_prev_time) {
             m_prev_cache_size = cache_size;
+            m_prev_time = time;
             m_normal_raster.resize(cache_size, cache_size);
             get_normals(shape, m_normal_raster);
             #ifdef KSNORMAL_DEBUG

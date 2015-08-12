@@ -33,6 +33,8 @@ blend_node =cmds.shadingNode("blendColors", asShader=True)
 cmds.connectAttr("%s.message" % shape_node, "%s.shapeMessage" % nl_node, force=True)
 cmds.connectAttr("%s.translate" % locator,  "%s.cameraLocation" % nl_node, force=True)
 
+cmds.connectAttr("time1.outTime", "%s.time" % nl_node, force=True)
+
 cmds.connectAttr("%s.outNormal" % nl_node,  "%s.color1" % blend_node, force=True)
 for c in "RGB":
     cmds.connectAttr("%s.outFacingRatio" % nl_node, "%s.color2%s" % (blend_node, c), force=True)
