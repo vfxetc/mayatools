@@ -3,21 +3,19 @@
 #include <maya/MDataBlock.h>
 #include <maya/MDataHandle.h>
 #include <maya/MFloatVector.h>
-#include <maya/MFnMesh.h>
-#include <maya/MFnMeshData.h>
+#include <maya/MPointArray.h>
 #include <maya/MFnUnitAttribute.h>
 #include <maya/MFnMessageAttribute.h>
 #include <maya/MFnNumericAttribute.h>
-#include <maya/MFnPlugin.h>
 #include <maya/MFnTypedAttribute.h>
-#include <maya/MIOStream.h>
+#include <maya/MFnPlugin.h>
 #include <maya/MPlug.h>
 #include <maya/MPlugArray.h>
 #include <maya/MPxNode.h>
-#include <maya/MString.h>
+#include <maya/MFnMesh.h>
 #include <maya/MItMeshPolygon.h>
-#include <maya/MPointArray.h>
 #include <maya/MGlobal.h>
+#include <maya/MString.h>
 #include <maya/MTime.h>
 
 #include <glm/glm.hpp>

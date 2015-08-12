@@ -1,8 +1,6 @@
 #include "edge.h"
 #include <math.h>
 
-#include <iostream>
-
 using namespace NormalRaster;
 
 Edge::Edge(const Gradient &grad,
