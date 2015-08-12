@@ -14,9 +14,20 @@
 #include <maya/MPlugArray.h>
 #include <maya/MPxNode.h>
 #include <maya/MString.h>
-#include <maya/MTypeId.h>
+#include <maya/MItMeshPolygon.h>
+#include <maya/MPointArray.h>
+#include <maya/MGlobal.h>
+
+#include <glm/glm.hpp>
 
 #include "normal_raster/rendercontext.h"
+
+#ifdef KSNORMAL_DEBUG
+
+#include <iostream>
+#include <fstream>
+
+#endif
 
 class KSNormalLookup : public MPxNode
 {
@@ -36,8 +47,13 @@ class KSNormalLookup : public MPxNode
     static MObject shapeMessageAttr;
     static MObject cameraLocationAttr;
     static MObject lookupPointAttr;
+    static MObject cachSizeAttr;
+    static MObject lookupUVAttr;
     static MObject outNormalAttr;
     static MObject outFacingRatioAttr;
+
+    NormalRaster::RenderContext m_normal_raster;
+    int m_prev_cache_size;
 };
 
 MTypeId KSNormalLookup::id('KSNL');
@@ -46,6 +62,8 @@ MTypeId KSNormalLookup::id('KSNL');
 MObject KSNormalLookup::shapeMessageAttr;
 MObject KSNormalLookup::cameraLocationAttr;
 MObject KSNormalLookup::lookupPointAttr;
+MObject KSNormalLookup::cachSizeAttr;
+MObject KSNormalLookup::lookupUVAttr;
 MObject KSNormalLookup::outNormalAttr;
 MObject KSNormalLookup::outFacingRatioAttr;
 
@@ -56,7 +74,7 @@ void KSNormalLookup::postConstructor()
 }
 
 
-KSNormalLookup::KSNormalLookup()
+KSNormalLookup::KSNormalLookup() : m_prev_cache_size(-1)
 {
 }
 
@@ -86,6 +104,17 @@ MStatus KSNormalLookup::initialize()
     CHECK_MSTATUS(nAttr.setStorable(false));
     CHECK_MSTATUS(nAttr.setHidden(true));
 
+    // Implicit shading network attributes
+    MObject child1 = nAttr.create( "uCoord", "u", MFnNumericData::kFloat);
+    MObject child2 = nAttr.create( "vCoord", "v", MFnNumericData::kFloat);
+    lookupUVAttr = nAttr.create( "uvCoord", "uv", child1, child2);
+    CHECK_MSTATUS( nAttr.setKeyable(true) );
+    CHECK_MSTATUS( nAttr.setStorable(false) );
+    CHECK_MSTATUS( nAttr.setReadable(true) );
+    CHECK_MSTATUS( nAttr.setWritable(true) );
+    CHECK_MSTATUS( nAttr.setHidden(true) );
+
+
     shapeMessageAttr = mAttr.create("shapeMessage", "rn", &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
     CHECK_MSTATUS(mAttr.setStorable(false));
@@ -93,6 +122,11 @@ MStatus KSNormalLookup::initialize()
     cameraLocationAttr = nAttr.createPoint("cameraLocation", "cl", &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
     CHECK_MSTATUS(nAttr.setStorable(false));
+
+    cachSizeAttr = nAttr.create("cachSize", "sz", MFnNumericData::kInt, 256, &status);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+    CHECK_MSTATUS(nAttr.setStorable(false));
+    CHECK_MSTATUS(nAttr.setMin(0));
 
     outNormalAttr = nAttr.createColor("outNormal", "on", &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
@@ -106,19 +140,131 @@ MStatus KSNormalLookup::initialize()
 
     CHECK_MSTATUS(addAttribute(shapeMessageAttr));
     CHECK_MSTATUS(addAttribute(cameraLocationAttr));
+    CHECK_MSTATUS(addAttribute(cachSizeAttr));
     CHECK_MSTATUS(addAttribute(lookupPointAttr));
+    CHECK_MSTATUS(addAttribute(lookupUVAttr));
     CHECK_MSTATUS(addAttribute(outNormalAttr));
     CHECK_MSTATUS(addAttribute(outFacingRatioAttr));
 
     CHECK_MSTATUS(attributeAffects(shapeMessageAttr, outNormalAttr));
     CHECK_MSTATUS(attributeAffects(lookupPointAttr, outNormalAttr));
+    CHECK_MSTATUS(attributeAffects(lookupUVAttr, outNormalAttr));
+    CHECK_MSTATUS(attributeAffects(cachSizeAttr, outNormalAttr));
+
     CHECK_MSTATUS(attributeAffects(shapeMessageAttr, outFacingRatioAttr));
     CHECK_MSTATUS(attributeAffects(cameraLocationAttr, outFacingRatioAttr));
     CHECK_MSTATUS(attributeAffects(lookupPointAttr, outFacingRatioAttr));
+    CHECK_MSTATUS(attributeAffects(lookupUVAttr, outFacingRatioAttr));
+    CHECK_MSTATUS(attributeAffects(cachSizeAttr, outFacingRatioAttr));
 
     return MS::kSuccess;
 }
 
+static MIntArray GetLocalIndex( MIntArray & getVertices, MIntArray & getTriangle )
+{
+  MIntArray   localIndex;
+  unsigned    gv, gt;
+
+  assert ( getTriangle.length() == 3 );    // Should always deal with a triangle
+
+  for ( gt = 0; gt < getTriangle.length(); gt++ ) {
+    for ( gv = 0; gv < getVertices.length(); gv++ ) {
+      if ( getTriangle[gt] == getVertices[gv] ) {
+        localIndex.append( gv );
+        break;
+      }
+    }
+
+    // if nothing was added, add default "no match"
+    if ( localIndex.length() == gt )
+      localIndex.append( -1 );
+  }
+
+  return localIndex;
+}
+
+static void get_normals(const MObject& obj, NormalRaster::RenderContext &ctx)
+{
+    MStatus status = MS::kSuccess;
+    const MFnMesh meshFn(obj);
+    MStringArray  UVSets;
+    status = meshFn.getUVSetNames( UVSets );
+
+    if (status != MS::kSuccess || !UVSets.length()) {
+        MGlobal::displayWarning("no uvsets");
+        return;
+    }
+
+    MFloatArray   u, v;
+    meshFn.getUVs( u, v, &UVSets[0] );
+
+    MFloatVectorArray  meshNormals;
+    status = meshFn.getNormals(meshNormals);
+
+    if (status != MS::kSuccess || !meshNormals.length()) {
+        MGlobal::displayWarning("no normals");
+        return;
+    }
+
+    MItMeshPolygon itPolygon(obj);
+
+    for (/*nothing*/; !itPolygon.isDone(); itPolygon.next())
+    {
+        MIntArray polygonVertices;
+        int numTriangles;
+        itPolygon.getVertices(polygonVertices);
+
+        CHECK_MSTATUS(itPolygon.numTriangles(numTriangles));
+
+        while (numTriangles--) {
+
+            MPointArray nonTweaked;
+            MIntArray triangleVertices;
+            MIntArray localIndex;
+            status = itPolygon.getTriangle(numTriangles,
+                                           nonTweaked,
+                                           triangleVertices,
+                                           MSpace::kObject );
+            if (status != MS::kSuccess ) {
+                CHECK_MSTATUS(status);
+                continue;
+            }
+
+            if (triangleVertices.length() < 3) {
+                MGlobal::displayWarning("Skipping degenerate polygon");
+                continue;
+            }
+
+            localIndex = GetLocalIndex(polygonVertices, triangleVertices);
+
+            int uvID[3];
+            for ( int i = 0; i < 3; i++ ) {
+                itPolygon.getUVIndex(localIndex[i],
+                                     uvID[i],
+                                     &UVSets[0] );
+
+            }
+
+            NormalRaster::Vertex polygon[3];
+
+            for (int i = 0; i < 3; i++) {
+                polygon[i].pos.x = u[uvID[i]] * ctx.width();
+                polygon[i].pos.y = v[uvID[i]] * ctx.height();
+
+                MVector normal = meshNormals[itPolygon.normalIndex(localIndex[i])];
+
+                polygon[i].color.r = normal.x;
+                polygon[i].color.g = normal.y;
+                polygon[i].color.b = normal.z;
+                polygon[i].color.a = 1.0;
+
+            }
+
+            ctx.draw_triangle(polygon[0], polygon[1], polygon[2]);
+
+        }
+    }
+}
 
 MStatus KSNormalLookup::compute(
 const MPlug&      plug,
@@ -163,9 +309,39 @@ const MPlug&      plug,
         return status;
     }
 
-    // Grab the closest normal to that point.
     MVector closestNormal;
-    CHECK_MSTATUS_AND_RETURN_IT(meshFn.getClosestNormal(lookupPoint, closestNormal)); // <- ERROR IS HERE
+    float2 & uv = block.inputValue( lookupUVAttr ).asFloat2();
+    int cache_size = block.inputValue(cachSizeAttr).asInt();
+
+    if (cache_size > 0) {
+
+        if (cache_size != m_prev_cache_size) {
+            m_prev_cache_size = cache_size;
+            m_normal_raster.resize(cache_size, cache_size);
+            get_normals(shape, m_normal_raster);
+            #ifdef KSNORMAL_DEBUG
+            std::ofstream ofile("ksnormal_data.rgba", std::ios::binary);
+            ofile.write((char*) &m_normal_raster.data[0],
+                          m_normal_raster.data.size() * sizeof(float));
+            ofile.close();
+            #endif
+        }
+
+        int x = uv[0] * m_normal_raster.width();
+        int y = uv[1] * m_normal_raster.height();
+
+        glm::vec4 color;
+        m_normal_raster.read_pixel(x, y, color);
+        closestNormal.x = color[0];
+        closestNormal.y = color[1];
+        closestNormal.z = color[2];
+
+    } else {
+        // Grab the closest normal to that point the slow way
+        CHECK_MSTATUS_AND_RETURN_IT(meshFn.getClosestNormal(lookupPoint, closestNormal)); // <- ERROR IS HERE
+        CHECK_MSTATUS_AND_RETURN_IT(closestNormal.normalize());
+    }
+
     CHECK_MSTATUS_AND_RETURN_IT(closestNormal.normalize());
 
     // Calculate dot product between view vector and normal.

@@ -13,6 +13,7 @@ RenderContext::RenderContext(int width, int height) :
 
 void RenderContext::resize(int width, int height)
 {
+    data.clear();
     data.resize(width * height *4);
     m_width = width;
     m_height = height;
@@ -28,15 +29,27 @@ void RenderContext::draw_pixel(int x, int y, const glm::vec4 &color)
 
     int index = (x + (y * m_width)) * 4;
 
-    //if (data[index + 3] != 0) {
-    //    std::cerr << x << " " << y <<" overdraw\n" ;
-    //}
-
     data[index    ] = color.r;
     data[index + 1] = color.g;
     data[index + 2] = color.b;
     data[index + 3] = color.a;
 
+}
+
+void RenderContext::read_pixel(int x, int y, glm::vec4 &color)
+{
+    if (y < 0 || y >= m_height)
+        return;
+
+    if (x < 0 || x >= m_width)
+        return;
+
+    int index = (x + (y * m_width)) * 4;
+
+    color.r = data[index    ];
+    color.g = data[index + 1];
+    color.b = data[index + 2];
+    color.a = data[index + 3];
 
 }
 
@@ -65,9 +78,9 @@ void RenderContext::draw_triangle(const Vertex &v1, const Vertex &v2, const Vert
         mid = temp;
     }
 
-    //std::cerr << "min " << glm::to_string(min.pos) << "\n";
-    //std::cerr << "mid " << glm::to_string(mid.pos) << "\n";
-    //std::cerr << "max " << glm::to_string(max.pos) << "\n";
+    //std::cerr << "min " << glm::to_string(min->pos) << "\n";
+    //std::cerr << "mid " << glm::to_string(mid->pos) << "\n";
+    //std::cerr << "max " << glm::to_string(max->pos) << "\n";
 
     scan_triangle(*min, *mid, *max,
                   min->area_x2(*max, *mid) >= 0);

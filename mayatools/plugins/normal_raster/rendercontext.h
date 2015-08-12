@@ -14,10 +14,12 @@ namespace NormalRaster
 class RenderContext
 {
 public:
+    RenderContext() {}
     RenderContext(int width, int height);
     std::vector<float> data;
     void resize(int width, int height);
     void draw_pixel(int x, int y, const glm::vec4 &color);
+    void read_pixel(int x, int y, glm::vec4 &color);
     void draw_triangle(const Vertex &v1, const Vertex &v2, const Vertex &v3);
     int width() const {return m_width;}
     int height() const {return m_height;}
