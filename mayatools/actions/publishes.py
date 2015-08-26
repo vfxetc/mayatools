@@ -29,9 +29,7 @@ def republish(entity_type, selected_ids, type_name, type_code):
     assert entity_type == 'PublishEvent'
     assert selected_ids
 
-    title = 'Republish as %s' % type_name
-
-    progress(title=title, message='Fetching entities...')
+    progress('Fetching entities...')
 
     sgfs = SGFS()
 
@@ -55,7 +53,7 @@ def republish(entity_type, selected_ids, type_name, type_code):
         owner_name = owner.name if owner else str(link)
         future_name = 'Republish %s as %s - %s:%s' % (publish['sg_type'], type_code, owner_name, link.name)
 
-        progress(title=title, message='Submitting %s/%s to Qube:\n<em>"%s"</em>' % (i + 1, len(entities), future_name))
+        progress('Submitting %s/%s to Qube:\n<em>"%s"</em>' % (i + 1, len(entities), future_name))
 
         maya_scene = get_maya_scene(publish)
         thumbnail = os.path.join(os.path.dirname(maya_scene), 'thumbnail.jpg')
@@ -111,6 +109,6 @@ def republish(entity_type, selected_ids, type_name, type_code):
         messages.append('Submitted to Qube as %s' % ', '.join(str(f.job_id) for f in futures))
     if errors:
         messages.extend('<span style="color:red">%s</span>' % e for e in errors)
-    notify(title=title, message='\n'.join(messages))
+    notify('; '.join(messages))
 
 
