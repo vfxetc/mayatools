@@ -141,7 +141,10 @@ class CameraExporter(sgpublish.exporter.maya.Exporter):
 
     def _export_nuke(self, path, camera):
 
-        transform = cmds.listRelatives(camera, fullPath=True, parent=True)[0]
+        if cmds.nodeType(camera) == 'transform':
+            transform = camera
+        else:
+            transform = cmds.listRelatives(camera, fullPath=True, parent=True)[0]
 
         fh = open(path, 'w')
 
@@ -254,7 +257,19 @@ def main(argv=None):
     cmds.file(args.scene, open=True)
     log.info('done loading file')
 
-    cameras = cmds.ls(args.camera or '*', type='camera', long=True) or ()
+    if args.camera:
+        # This will grab shapes...
+        cameras = cmds.ls(args.camera, type='camera', long=True) or ()
+    else:
+        # ... but this will grab transforms.
+        cameras = cmds.listCameras(perspective=True) or ()
+
+        # Leave out the default camera.
+        cameras = [c for c in cameras if c.split('|')[-1] != 'persp']
+
+        # Leave out non-renderable ones.
+        cameras = [c for c in cameras if cmds.getAttr(c + '.renderable')]
+
     if args.list_cameras:
         print '\n'.join(cameras)
         return
@@ -267,9 +282,8 @@ def main(argv=None):
         if len(cameras) > 1:
             log.warning('more than one camera matching %s; taking %s' % (args.camera, camera))
     else:
-        cameras = [c for c in cameras if c.split('|')[1] not in ('top', 'side', 'persp', 'front')]
         if not cameras:
-            log.error('no non-default cameras')
+            log.error('no non-default renderable cameras')
             exit(1)
         camera = cameras[0]
         if len(cameras) > 1:
@@ -288,7 +302,7 @@ def main(argv=None):
 
         exporter.publish(link, name, dict(camera=camera, bake_to_world_space=args.world), thumbnail_path=thumbnail_path)
     else:
-        directory = args.out_dir or os.path.join(args.scene, '..', 'data', 'camera', name)
+        directory = args.out_dir or os.path.abspath(os.path.join(args.scene, '..', 'data', 'camera', name))
         exporter.export(directory=directory, path=directory, camera=camera, bake_to_world_space=args.world)
 
     log.info('DONE')
