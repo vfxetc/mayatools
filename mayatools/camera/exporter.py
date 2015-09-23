@@ -9,6 +9,7 @@ from maya import cmds, mel
 
 from sgfs import SGFS
 from sgfs.commands.utils import parse_spec
+import sgpublish.commands.utils as publish_cli_utils
 import sgpublish.exporter.maya
 
 from .. import context
@@ -240,14 +241,14 @@ def main(argv=None):
     parser.add_argument('-e', '--end', type=int)
     parser.add_argument('-d', '--out-dir')
 
-    parser.add_argument('--publish-link')
-    parser.add_argument('--publish-name')
-    parser.add_argument('--publish-thumbnail')
+    publish_cli_utils.add_publisher_arguments(parser, short_flags=False, prefix=True)
 
     parser.add_argument('-l', '--list-cameras', action='store_true')
     parser.add_argument('scene')
     parser.add_argument('camera', nargs='?')
     args = parser.parse_args(argv)
+
+    publisher_kwargs = publish_cli_utils.extract_publisher_kwargs(args)
 
     log.info('initializing Maya')
     import maya.standalone
@@ -291,16 +292,14 @@ def main(argv=None):
 
     log.info('will export %s' % camera)
 
-    name = args.publish_name or os.path.splitext(os.path.basename(args.scene))[0]
     exporter = CameraExporter()
-    if args.publish_link:
-        link = parse_spec(SGFS(), args.publish_link)
-        print link
+    name = os.path.splitext(os.path.basename(args.scene))[0]
 
-        # TODO: take a screenshot (on OS X) via screenshot
-        thumbnail_path = args.publish_thumbnail
+    if 'link' in publisher_kwargs or 'template' in publisher_kwargs:
+        if 'template' not in publisher_kwargs:
+            publisher_kwargs['name'] = name
+        exporter.publish(export_kwargs=dict(camera=camera, bake_to_world_space=args.world), **publisher_kwargs)
 
-        exporter.publish(link, name, dict(camera=camera, bake_to_world_space=args.world), thumbnail_path=thumbnail_path)
     else:
         directory = args.out_dir or os.path.abspath(os.path.join(args.scene, '..', 'data', 'camera', name))
         exporter.export(directory=directory, path=directory, camera=camera, bake_to_world_space=args.world)

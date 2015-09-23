@@ -11,6 +11,7 @@ from sgfs import SGFS
 from sgfs.commands.utils import parse_spec
 import metatools.deprecate
 import qbfutures.maya
+import sgpublish.commands.utils as publish_cli_utils
 import sgpublish.exporter.maya
 
 from .utils import export_cache
@@ -102,14 +103,14 @@ def main(argv=None):
     parser.add_argument('-e', '--end', type=int)
     parser.add_argument('-d', '--out-dir')
 
-    parser.add_argument('--publish-link')
-    parser.add_argument('--publish-name')
-    parser.add_argument('--publish-thumbnail')
+    publish_cli_utils.add_publisher_arguments(parser, short_flags=False, prefix=True)
 
     parser.add_argument('-l', '--list-sets', action='store_true')
     parser.add_argument('scene')
     parser.add_argument('cache_sets', nargs='*')
     args = parser.parse_args(argv)
+
+    publisher_kwargs = publish_cli_utils.extract_publisher_kwargs(args)
 
     log.info('initializing Maya')
     import maya.standalone
@@ -136,15 +137,14 @@ def main(argv=None):
         name = cache_name_from_cache_set(cache_set) or 'cache'
         to_cache.append((members, name, frame_from, frame_to, world))
 
-    name = args.publish_name or os.path.splitext(os.path.basename(args.scene))[0]
     exporter = Exporter()
-    if args.publish_link:
-        link = parse_spec(SGFS(), args.publish_link)
+    name = os.path.splitext(os.path.basename(args.scene))[0]
 
-        # TODO: take a screenshot (on OS X) via screenshot
-        thumbnail_path = args.publish_thumbnail
-        
-        exporter.publish(link, name, dict(to_cache=to_cache, as_abc=as_abc), thumbnail_path=thumbnail_path)
+    if 'link' in publisher_kwargs or 'template' in publisher_kwargs:
+        if 'template' not in publisher_kwargs:
+            publisher_kwargs['name'] = name
+        exporter.publish(export_kwargs=dict(to_cache=to_cache, as_abc=as_abc), **publisher_kwargs)
+
     else:
         directory = args.out_dir or os.path.join(args.scene, '..', 'data', 'geo_cache', name)
         exporter.export(directory=directory, path=directory, to_cache=to_cache, as_abc=as_abc)

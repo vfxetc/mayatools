@@ -17,8 +17,10 @@ def get_maya_scene(publish):
 
 def republish_scene(entity_type, selected_ids, **kwargs):
     republish(entity_type, selected_ids, 'Scene', 'maya_scene')
+
 def republish_camera(entity_type, selected_ids, **kwargs):
     republish(entity_type, selected_ids, 'Scene', 'maya_camera')
+
 def republish_geocache(entity_type, selected_ids, **kwargs):
     republish(entity_type, selected_ids, 'Scene', 'maya_geocache')
 
@@ -33,7 +35,7 @@ def republish(entity_type, selected_ids, type_name, type_code):
 
     sgfs = SGFS()
 
-    entities = [sgfs.session.merge(dict(type='PublishEvent', id=id_)) for id_ in selected_ids]
+    entities = [sgfs.session.merge(dict(type=entity_type, id=id_)) for id_ in selected_ids]
     sgfs.session.fetch(entities, ('code', 'sg_link', 'sg_link.Task.entity', 'sg_type', 'sg_path',
         'created_by.HumanUser.login'))
 
@@ -56,8 +58,6 @@ def republish(entity_type, selected_ids, type_name, type_code):
         progress('Submitting %s/%s to Qube:\n<em>"%s"</em>' % (i + 1, len(entities), future_name))
 
         maya_scene = get_maya_scene(publish)
-        thumbnail = os.path.join(os.path.dirname(maya_scene), 'thumbnail.jpg')
-        thumbnail = thumbnail if os.path.exists(thumbnail) else ''
 
         # Run the job as the original user.
         qb_extra = {}
@@ -66,12 +66,10 @@ def republish(entity_type, selected_ids, type_name, type_code):
             qb_extra['user'] = login.split('@')[0]
 
         if type_code == 'maya_scene':
-            future = executor.submit_ext('sgpublish.commands.publish:main',
+            future = executor.submit_ext('sgpublish.commands.create:main',
                 args=[(
-                    '--link', '%(type)s:%(id)d' % publish['sg_link'],
-                    '--code', publish['code'],
+                    '--template', str(publish['id']),
                     '--type', type_code,
-                    '--thumbnail', thumbnail,
                     maya_scene
                 )],
                 name=future_name,
@@ -83,9 +81,7 @@ def republish(entity_type, selected_ids, type_name, type_code):
         elif type_code == 'maya_geocache':
             future = executor.submit_ext('mayatools.geocache.exporter:main',
                 args=[(
-                    '--publish-link', '%(type)s:%(id)d' % publish['sg_link'],
-                    '--publish-name', publish['code'],
-                    '--publish-thumbnail', thumbnail,
+                    '--publish-template', str(publish['id']),
                     maya_scene,
                 )],
                 name=future_name,
@@ -98,9 +94,7 @@ def republish(entity_type, selected_ids, type_name, type_code):
         elif type_code == 'maya_camera':
             future = executor.submit_ext('mayatools.camera.exporter:main',
                 args=[(
-                    '--publish-link', '%(type)s:%(id)d' % publish['sg_link'],
-                    '--publish-name', publish['code'],
-                    '--publish-thumbnail', thumbnail,
+                    '--publish-template', str(publish['id']),
                     maya_scene,
                 )],
                 name=future_name,
@@ -120,4 +114,16 @@ def republish(entity_type, selected_ids, type_name, type_code):
         messages.extend('<span style="color:red">%s</span>' % e for e in errors)
     notify('; '.join(messages))
 
+
+
+if __name__ == '__main__':
+    
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('type')
+    parser.add_argument('ids', nargs='+', type=int)
+    args = parser.parse_args()
+
+    republish('PublishEvent', args.ids, 'Scene', args.type)
 

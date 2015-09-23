@@ -10,10 +10,7 @@ import sgpublish.exporter.ui.workarea
 import sgpublish.uiutils
 from sgpublish.exporter.ui.publish.generic import PublishSafetyError
 
-
 from .exporter import CameraExporter, get_nodes_to_export
-
-
 
 
 class Dialog(QtGui.QDialog):
