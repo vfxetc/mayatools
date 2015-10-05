@@ -19,6 +19,53 @@ void RenderContext::resize(int width, int height)
     m_height = height;
 }
 
+glm::vec4 RenderContext::get_nearest(int src_x, int src_y) const
+{
+    glm::vec4 result;
+    int i = 0;
+
+    for (int y = src_y - 1; y <= src_y + 1; y++){
+        for (int x = src_x - 1; x <= src_x + 1; x++) {
+            glm::vec4 color;
+            read_pixel(x, y, color);
+
+            if (!(color.a > 0))
+                continue;
+
+            result += color;
+            i++;
+        }
+    }
+
+    if (i == 0)
+        return result;
+
+    result = result / glm::vec4(i, i, i, i);
+    result.a = 1;
+    return result;
+}
+
+void RenderContext::grow_edges()
+{
+    // copy
+    RenderContext ctx = *this;
+
+    for (int y = 0; y < m_height; y++) {
+        for (int x = 0; x < m_width; x++) {
+            glm::vec4 color;
+            read_pixel(x, y, color);
+            if (color.a > 0)
+                continue;
+
+            color = ctx.get_nearest(x, y);
+            if (!(color.a > 0))
+                continue;
+
+            draw_pixel(x,y, color);
+        }
+    }
+}
+
 void RenderContext::draw_pixel(int x, int y, const glm::vec4 &color)
 {
     if (y < 0 || y >= m_height)
@@ -36,7 +83,7 @@ void RenderContext::draw_pixel(int x, int y, const glm::vec4 &color)
 
 }
 
-void RenderContext::read_pixel(int x, int y, glm::vec4 &color)
+void RenderContext::read_pixel(int x, int y, glm::vec4 &color) const
 {
     if (y < 0 || y >= m_height)
         return;

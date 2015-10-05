@@ -19,7 +19,9 @@ public:
     std::vector<float> data;
     void resize(int width, int height);
     void draw_pixel(int x, int y, const glm::vec4 &color);
-    void read_pixel(int x, int y, glm::vec4 &color);
+    void read_pixel(int x, int y, glm::vec4 &color) const;
+    glm::vec4 get_nearest(int src_x, int src_y) const;
+    void grow_edges();
     void draw_triangle(const Vertex &v1, const Vertex &v2, const Vertex &v3);
     int width() const {return m_width;}
     int height() const {return m_height;}

@@ -336,6 +336,11 @@ const MPlug&      plug,
             m_prev_time = time;
             m_normal_raster.resize(cache_size, cache_size);
             get_normals(shape, m_normal_raster);
+
+            for (int i = 0; i < 5; i++) {
+                m_normal_raster.grow_edges();
+            }
+
             #ifdef KSNORMAL_DEBUG
             std::ofstream ofile("ksnormal_data.rgba", std::ios::binary);
             ofile.write((char*) &m_normal_raster.data[0],
