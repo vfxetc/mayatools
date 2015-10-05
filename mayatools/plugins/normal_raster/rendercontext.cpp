@@ -93,10 +93,13 @@ void RenderContext::read_pixel(int x, int y, glm::vec4 &color) const
 
     int index = (x + (y * m_width)) * 4;
 
+    if (!(data[index + 3] > 0))
+        return;
+
     color.r = data[index    ];
     color.g = data[index + 1];
     color.b = data[index + 2];
-    color.a = data[index + 3];
+    color.a = 1;
 
 }
 
