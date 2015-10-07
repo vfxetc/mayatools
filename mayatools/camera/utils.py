@@ -1,22 +1,22 @@
 from maya import cmds
 
 
-def get_renderable_cameras(shapes=False):
+def get_renderable_cameras():
+    """Return all non-default renderable cameras.
 
-    # ... but this will grab transforms.
-    cameras = cmds.listCameras(perspective=True) or ()
+    Returns the camera shape, not the transform.
 
-    # Leave out the default camera.
-    cameras = [c for c in cameras if c.split('|')[-1] != 'persp']
+    """
 
-    # Leave out non-renderable ones.
+    cameras = cmds.ls(type='camera') or ()
+
+    # Leave out orthographic cameras.
+    cameras = [c for c in cameras if not cmds.getAttr(c + '.orthographic')]
+
+    # Leave out the default perspective camera.
+    cameras = [c for c in cameras if c.split('|')[-1] != 'perspShape']
+
+    # Leave out non-renderable cameras.
     cameras = [c for c in cameras if cmds.getAttr(c + '.renderable')]
 
-    if shapes:
-        shapes = []
-        for c in cameras:
-            shapes.extend(cmds.listRelatives(c, children=True, type='camera') or [])
-        return shapes
-
     return cameras
-

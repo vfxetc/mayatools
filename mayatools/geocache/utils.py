@@ -294,7 +294,7 @@ def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False,
                     shapes.append(node)
 
             # Include the first renderable camera.
-            cameras = get_renderable_cameras(shapes=True)
+            cameras = get_renderable_cameras()
             if not cameras:
                 cmds.warning('No renderable cameras to export.')
             else:
