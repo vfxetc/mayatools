@@ -16,6 +16,8 @@ from .. import context
 from .. import downgrade
 from ..transforms import transfer_global_transforms
 from ..playblast import screenshot
+from .utils import get_renderable_cameras
+
 
 # Default Nuke Camera Vert Aperture
 DNCVA = 18.672
@@ -262,14 +264,7 @@ def main(argv=None):
         # This will grab shapes...
         cameras = cmds.ls(args.camera, type='camera', long=True) or ()
     else:
-        # ... but this will grab transforms.
-        cameras = cmds.listCameras(perspective=True) or ()
-
-        # Leave out the default camera.
-        cameras = [c for c in cameras if c.split('|')[-1] != 'persp']
-
-        # Leave out non-renderable ones.
-        cameras = [c for c in cameras if cmds.getAttr(c + '.renderable')]
+        cameras = get_renderable_cameras()
 
     if args.list_cameras:
         print '\n'.join(cameras)

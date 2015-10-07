@@ -7,6 +7,7 @@ import abctools.maya.export
 
 from mayatools import mcc
 from mayatools.sets import reduce_sets
+from mayatools.camera.utils import get_renderable_cameras
 
 
 def get_cache_channels(cache_path):
@@ -291,6 +292,15 @@ def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False)
                     shapes.extend(node_shapes)
                 else:
                     shapes.append(node)
+
+            # Include the first renderable camera.
+            cameras = get_renderable_cameras(shapes=True)
+            if not cameras:
+                cmds.warning('No renderable cameras to export.')
+            else:
+                shapes.append(cameras[0])
+                if len(cameras) > 1:
+                    cmds.warning('%s renderable cameras; only exporting %r' % cameras[0])
 
             cmds.select(shapes, replace=True)
 

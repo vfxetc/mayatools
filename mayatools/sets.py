@@ -1,3 +1,5 @@
+import traceback
+
 from maya import cmds
 
 
@@ -21,7 +23,11 @@ def reduce_sets(set_names=None):
             if '.' in item:
                 obj, attr = item.split('.')
                 path = cmds.ls(obj, long=True)[0] + '.' + attr
-                this_set['attributes'][path] = cmds.getAttr(item)
+                try:
+                    this_set['attributes'][path] = cmds.getAttr(item)
+                except:
+                    # We don't want any wierd attributes to give us trouble.
+                    cmds.warning(traceback.format_exc())
             else:
                 path = cmds.ls(item, long=True)[0]
                 this_set['objects'].append(path)
