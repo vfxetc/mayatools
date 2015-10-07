@@ -3,7 +3,10 @@ import re
 
 from maya import cmds, mel
 
+import abctools.maya.export
+
 from mayatools import mcc
+from mayatools.sets import reduce_sets
 
 
 def get_cache_channels(cache_path):
@@ -291,16 +294,15 @@ def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False)
 
             cmds.select(shapes, replace=True)
 
-            job = '''
-                -sl
-                -uvWrite
-                -frameRange {frame_from} {frame_to}
-                -file {path}.abc
-            '''
-            if world:
-                job += ' -worldSpace'
-
-            cmds.AbcExport(j=re.sub(r'\s+', ' ', job).format(**locals()))
+            abctools.maya.export.export(path + '.abc',
+                selection=True,
+                uvWrite=True,
+                frameRange=(int(frame_from), int(frame_to)),
+                worldSpace=bool(world),
+                metadata={
+                    'sets': reduce_sets(),
+                },
+            )
     
     finally:
             
