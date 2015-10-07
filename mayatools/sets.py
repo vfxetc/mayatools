@@ -44,14 +44,7 @@ def reduce_sets(set_names=None, include_default_sets=False):
 
                 obj_name, attr_name, index = m.groups()
                 long_attr_name = cmds.ls(obj_name, long=True)[0] + '.' + attr_name
-
-                # Stuff commented here gives you data type and size, but appears
-                # useless in practise.
-                #first_index = obj_name + '.' + attr_name + ('[0]' if index else '')
-                this_set['attributes'][long_attr_name] = this_attr = {
-                    #'type': cmds.getAttr(first_index, type=True),
-                    #'size': cmds.getAttr(first_index, size=True),
-                }
+                this_attr = this_set['attributes'].setdefault(long_attr_name, {})
 
                 if index is None:
                     try:
@@ -60,7 +53,9 @@ def reduce_sets(set_names=None, include_default_sets=False):
                         # We don't want any wierd attributes to give us trouble.
                         cmds.warning(traceback.format_exc())
                 else:
-                    this_attr['indices'] = index.split('][')
+                    indices = this_attr.setdefault('indices', [])
+                    index = index.split('][')
+                    indices.append(index[0] if len(index) == 1 else index)
 
             else:
                 path = cmds.ls(item, long=True)[0]
