@@ -224,7 +224,7 @@ def get_existing_cache_mappings():
     return mappings
 
 
-def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False):
+def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False, alembic_metadata=None):
 
     if not os.path.exists(path):
         os.makedirs(path)
@@ -302,6 +302,15 @@ def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False)
                 if len(cameras) > 1:
                     cmds.warning('%s renderable cameras; only exporting %r' % cameras[0])
 
+            file_info = cmds.fileInfo(q=True)
+            file_info = dict(zip(file_info[0::2], file_info[1::2]))
+            metadata = (alembic_metadata or {}).copy()
+            metadata.update(
+                file_info=file_info,
+                references=[str(x) for x in cmds.file(query=True, reference=True) or []],
+                sets=reduce_sets(),
+            )
+
             cmds.select(shapes, replace=True)
 
             abctools.maya.export.export(path + '.abc',
@@ -309,9 +318,7 @@ def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False)
                 uvWrite=True,
                 frameRange=(int(frame_from), int(frame_to)),
                 worldSpace=bool(world),
-                metadata={
-                    'sets': reduce_sets(),
-                },
+                metadata=metadata,
             )
     
     finally:

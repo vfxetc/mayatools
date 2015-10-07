@@ -49,9 +49,17 @@ class Exporter(sgpublish.exporter.maya.Exporter):
         # Set the path to the directory.
         publish.path = publish.directory
         kwargs['name'] = '%s - v%04d' % (publish.name, publish.version)
+        kwargs['alembic_metadata'] = metadata = (kwargs.get('alembic_metadata') or {}).copy()
+        metadata['sgpublish'] = {
+            'entity': publish.entity.minimal,
+            'name': publish.name,
+            'path': publish.path,
+            'type': publish.type,
+            'version': publish.version,
+        }
         self.export(publish.directory, publish.path, **kwargs)
 
-    def export(self, directory, path, to_cache, on_farm=False, as_abc=True, name=None):
+    def export(self, directory, path, to_cache, on_farm=False, as_abc=True, alembic_metadata=None, name=None):
 
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -81,13 +89,13 @@ class Exporter(sgpublish.exporter.maya.Exporter):
             with executor.batch('Geocache Export - %s' % (name or os.path.basename(path))) as batch:
                 for args in to_cache:
                     members, path, name, frame_from, frame_to, world = args
-                    batch.submit_ext(export_cache, args=args, kwargs={'as_abc': as_abc}, name=str(name))
+                    batch.submit_ext(export_cache, args=args, kwargs={'as_abc': as_abc, 'alembic_metadata': alembic_metadata}, name=str(name))
             
             QtGui.QMessageBox.information(None, "Submitted to Qube", "The geocache export was submitted as job %d" % batch.futures[0].job_id)
 
         if not on_farm:
             for args in to_cache:
-                export_cache(*args, as_abc=as_abc)
+                export_cache(*args, as_abc=as_abc, alembic_metadata=alembic_metadata)
 
 
 def main(argv=None):
