@@ -14,6 +14,7 @@ import sgfs.ui.scene_name.widget as scene_name
 import sgpublish.check.maya
 
 from . import utils
+from ..attributes import copy_attributes
 
 
 sgfs = SGFS()
@@ -824,23 +825,19 @@ class Dialog(QtGui.QDialog):
                 cache_path, transform, channel,
             ))
         
-        # Create "Render Stats" connections.
+        # Connect rendering attributes to the new shape.
         for transform in to_connect:
             shapes = cmds.listRelatives(transform, shapes=True)
             if len(shapes) == 2:
+
                 orig, deformed = shapes
-                for name in ('castsShadows', 'receiveShadows', 'motionBlur',
+                copy_attributes(orig, deformed, connect=True, include=(
+                    'castsShadows', 'receiveShadows', 'motionBlur',
                     'primaryVisibility', 'smoothShading', 'visibleInReflections',
                     'visibleInRefractions', 'doubleSided', 'opposite'
-                ):
-                    from_attr = orig + '.' + name
-                    to_attr = deformed + '.' + name
-                    existing = cmds.connectionInfo(to_attr, sourceFromDestination=True)
-                    if existing and existing != from_attr:
-                        cmds.warning('Unknown connection from %r to %r' % (existing, to_attr))
-                        continue
-                    if not existing:
-                        cmds.connectAttr(from_attr, to_attr)
+                ))
+                copy_attributes(orig, deformed, connect=True, prefix='rman')
+
             else:
                 cmds.warning('Expected 2 shapes under %r; found %r' % (transform, shapes))
         
