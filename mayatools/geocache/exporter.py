@@ -91,7 +91,12 @@ class Exporter(sgpublish.exporter.maya.Exporter):
                     members, path, name, frame_from, frame_to, world = args
                     batch.submit_ext(export_cache, args=args, kwargs={'as_abc': as_abc, 'alembic_metadata': alembic_metadata}, name=str(name))
             
-            QtGui.QMessageBox.information(None, "Submitted to Qube", "The geocache export was submitted as job %d" % batch.futures[0].job_id)
+            try:
+                from PyQt4 import QtGui
+            except ImportError:
+                print 'job', batch.futures[0].job_id
+            else:
+                QtGui.QMessageBox.information(None, "Submitted to Qube", "The geocache export was submitted as job %d" % batch.futures[0].job_id)
 
         if not on_farm:
             for args in to_cache:
