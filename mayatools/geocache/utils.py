@@ -300,7 +300,7 @@ def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False,
             else:
                 shapes.append(cameras[0])
                 if len(cameras) > 1:
-                    cmds.warning('%s renderable cameras; only exporting %r' % cameras[0])
+                    cmds.warning('%s renderable cameras; only exporting %r' % len(cameras, cameras[0]))
 
             file_info = cmds.fileInfo(q=True)
             file_info = dict(zip(file_info[0::2], file_info[1::2]))
