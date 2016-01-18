@@ -252,13 +252,18 @@ class Dialog(QtGui.QDialog):
                 
                 yield members, name, frame_from, frame_to, world
         
-    def _on_process_button(self):
+    def _on_process_button(self, on_farm=False):
         
+        to_cache = list(self._iter_to_cache())
+        if not to_cache:
+            QtGui.QMessageBox.critical(self, "Error", "Nothing selected to export.")
+            return
+
         try:
             publisher = self._exporter_widget.export(
-                to_cache=list(self._iter_to_cache()),
+                to_cache=to_cache,
                 as_abc=self._abc_check.isChecked(),
-                on_farm=False,
+                on_farm=on_farm,
             )
         except PublishSafetyError:
             return
@@ -268,19 +273,7 @@ class Dialog(QtGui.QDialog):
         self.close()
         
     def _on_queue_button(self):
-
-        try:
-            publisher = self._exporter_widget.export(
-                to_cache=list(self._iter_to_cache()),
-                as_abc=self._abc_check.isChecked(),
-                on_farm=True,
-            )
-        except PublishSafetyError:
-            return
-
-        if publisher:
-            sgpublish.uiutils.announce_publish_success(publisher)
-        self.close()
+        self._on_process_button(on_farm=True)
 
 
 def __before_reload__():
