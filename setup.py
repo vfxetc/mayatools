@@ -1,3 +1,4 @@
+import os
 from subprocess import check_call
 
 from setuptools import setup, find_packages
@@ -8,7 +9,9 @@ from distutils.command.build import build as default_build
 class build(default_build):
 
     def run(self):
-        check_call(['make'])
+        # Quickly disable the `make` for Mark Media (who does not need the compiled plugins).
+        if os.environ.get('MAYATOOLS_SETUP_MAKE'):
+            check_call(['make'])
         default_build.run(self)
 
 
