@@ -53,9 +53,9 @@ def _iter_buttons(path, _visited=None):
 
 
 
-def load(shelf_path=None):
+def load(shelf_path=None, image_roots=None):
     
-    # Default to the Maya shelf path.
+    # Default to $MAYA_SHELF_PATH.
     if shelf_path is None:
         shelf_path = os.environ.get('MAYA_SHELF_PATH')
         shelf_path = shelf_path.split(':') if shelf_path else []
@@ -80,7 +80,8 @@ def load(shelf_path=None):
             opts[key] = cmds.optionVar(q="shelf%s%d" % (key, i + 1))
 
     new_shelves = set()
-    
+    image_roots = image_roots or ()
+
     for shelf_dir in shelf_path:
         try:
             file_names = sorted(os.listdir(shelf_dir))
@@ -123,6 +124,17 @@ def load(shelf_path=None):
                 
                 convert_entrypoints(button)
             
+                # Find icons
+                image_name = button.get('image')
+                if image_name and not os.path.exists(image_name):
+                    for image_root in image_roots:
+                        image_path = os.path.join(image_root, image_name)
+                        if os.path.exists(image_path):
+                            button['image'] = image_path
+                            break
+                    else:
+                        print 'Could not find button image:', image_name
+
                 # Create the button!
                 try:
                     button_definition['name'] = button_name = cmds.shelfButton(**button)
