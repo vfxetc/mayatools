@@ -46,11 +46,9 @@ def playblast(**kwargs):
     kwargs.setdefault('forceOverwrite', True)
     kwargs.setdefault('percent', 100)
     
-    # So much state! Can we have Python2.7 now?
     with context.attrs(settings['attrs'], camera_attrs):
         with context.command(cmds.camera, camera, edit=True, **(settings['camera'] if camera else {})):
-            #with context.command(cmds.currentUnit, linear='cm', time='film'):
-                return cmds.playblast(**kwargs)
+            return cmds.playblast(**kwargs)
 
 
 def screenshot(frame=None, **kwargs):
