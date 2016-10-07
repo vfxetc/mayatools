@@ -39,7 +39,8 @@ def default_constructor(maya_menu, actions=None):
     res = []
     for spec in (actions or []):
         
-        if spec.get('seperator'):
+        # First one is a historical typo.
+        if spec.get('seperator') or spec.get('separator'):
             menu.addSeparator()
             continue
         
