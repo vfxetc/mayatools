@@ -30,6 +30,7 @@ class MyDialog(QtGui.QDialog):
         self._setup_ui()
     
     def _setup_ui(self):
+        self.setWindowTitle('Set FPS')
         layout = QtGui.QVBoxLayout()
         self.setLayout(layout)
 
@@ -46,11 +47,16 @@ class MyDialog(QtGui.QDialog):
 
         self._ok_button = QtGui.QPushButton('Set')
         self._ok_button.clicked.connect(self._on_ok_clicked)
-        layout.addWidget(self._ok_button)
-
+              
         self._cancel_button = QtGui.QPushButton('Cancel')
         self._cancel_button.clicked.connect(self._on_cancel_clicked)
-        layout.addWidget(self._cancel_button)
+        
+     
+        hbox = QtGui.QHBoxLayout()
+        hbox.addWidget(self._ok_button)
+        hbox.addWidget(self._cancel_button)
+
+        self.layout().addLayout(hbox)
 
     def _on_cancel_clicked(self):
         self.close()
