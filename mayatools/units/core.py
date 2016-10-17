@@ -73,4 +73,3 @@ def set_fps(fps):
         cmds.currentUnit(time=unit)
     except ValueError:
         raise ValueError("Unsupported framerate %s" % fps)
-

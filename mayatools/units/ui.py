@@ -16,7 +16,7 @@ for item in temp_list:
     unit_to_fps[name] = item
 
 for item in units.core.unit_to_fps:
-    name = item + " " + str(units.core.unit_to_fps[item]) + " fps"
+    name = item + " (" + str(units.core.unit_to_fps[item]) + " fps)"
     unit_to_fps[name] = units.core.unit_to_fps[item]
 
 
