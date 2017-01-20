@@ -268,11 +268,11 @@ def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False,
             cmds.setAttr(layer + '.visibility', True)
         
         cmds.select(members, replace=True)
-        
+        '''
         mel.eval('doCreateGeometryCache %s { %s }' % (
             version,
             ', '.join('"%s"' % x for x in args),
-        ))
+        )) '''
 
         if as_abc:
 

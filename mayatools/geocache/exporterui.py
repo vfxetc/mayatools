@@ -103,14 +103,14 @@ class Dialog(QtGui.QDialog):
         cmds.error(message)
             
     def _init_ui(self):
-        self.setWindowTitle('Geocache Export')
+        self.setWindowTitle('Alembic Cache Export')
         self.setMinimumWidth(600)
         self.setLayout(QtGui.QVBoxLayout())
         
         pattern_layout = QtGui.QHBoxLayout()
         self.layout().addLayout(pattern_layout)
         pattern_layout.addWidget(QtGui.QLabel("Set Pattern:"))
-        self._pattern_field = field = QtGui.QLineEdit('__cache__*')
+        self._pattern_field = field = QtGui.QLineEdit('__geoCache__')
         field.returnPressed.connect(self._reload)
         pattern_layout.addWidget(field)
         self._reload_button = button = QtGui.QPushButton('Reload')
@@ -126,10 +126,11 @@ class Dialog(QtGui.QDialog):
         
         self._reload()
         
+        '''
         options_box = QtGui.QGroupBox('Options')
         self.layout().addWidget(options_box)
         options_box.setLayout(QtGui.QVBoxLayout())
-        
+        '''
         version = int(cmds.about(version=True).split()[0])
         layout = QtGui.QHBoxLayout()
         options_box.layout().addLayout(layout)
@@ -146,6 +147,7 @@ class Dialog(QtGui.QDialog):
         group.addButton(self._world_radio)
         layout.addWidget(self._world_radio)
         layout.addStretch()
+
         if version < 2013:
             label = QtGui.QLabel('(only in 2013+)')
             label.setEnabled(False)
@@ -153,7 +155,7 @@ class Dialog(QtGui.QDialog):
             self._local_radio.setChecked(True)
         else:
             self._world_radio.setChecked(True)
-
+        
         self._abc_check = QtGui.QCheckBox("Also export as Alembic")
         options_box.layout().addWidget(self._abc_check)
         if hasattr(cmds, 'AbcExport'):
@@ -161,7 +163,7 @@ class Dialog(QtGui.QDialog):
         else:
             self._abc_check.setDisabled(True)
         
-
+        self._abc_check.setChecked(True)
         self._exporter = Exporter()
         self._exporter_widget = sgpublish.exporter.ui.tabwidget.Widget()
         self.layout().addWidget(self._exporter_widget)
@@ -187,16 +189,20 @@ class Dialog(QtGui.QDialog):
         button_layout = QtGui.QHBoxLayout()
         self.layout().addLayout(button_layout)
         
+        button = self.cancel_button = QtGui.QPushButton("Cancel")
+        button.clicked.connect(self._on_cancel_button)
+        button_layout.addWidget(button)
         button_layout.addStretch()
         
         button = self._local_button = QtGui.QPushButton("Process Locally")
         button.clicked.connect(self._on_process_button)
         button_layout.addWidget(button)
-        
+        '''
         button = self._qube_button = QtGui.QPushButton("Process on Farm")
         button.clicked.connect(self._on_queue_button)
         button_layout.addWidget(button)
-    
+        '''
+
     def _reload(self):
         
         self._groups = {}
@@ -274,6 +280,9 @@ class Dialog(QtGui.QDialog):
         
     def _on_queue_button(self):
         self._on_process_button(on_farm=True)
+
+    def _on_cancel_button(self):
+        self.close()
 
 
 def __before_reload__():

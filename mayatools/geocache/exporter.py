@@ -10,7 +10,7 @@ from mayatools.playblast import screenshot
 from sgfs import SGFS
 from sgfs.commands.utils import parse_spec
 import metatools.deprecate
-import qbfutures.maya
+#import qbfutures.maya
 import sgpublish.commands.utils as publish_cli_utils
 import sgpublish.exporter.maya
 
@@ -100,7 +100,7 @@ class Exporter(sgpublish.exporter.maya.Exporter):
 
         if not on_farm:
             for args in to_cache:
-                export_cache(*args, as_abc=as_abc, alembic_metadata=alembic_metadata)
+               0 export_cache(*args, as_abc=as_abc, alembic_metadata=alembic_metadata)
 
 
 def main(argv=None):
@@ -165,7 +165,7 @@ def main(argv=None):
     log.info('DONE')
 
 
-if __name__ == '__main__':
+if __name__ == '__main__' and __package__ is None:
     try:
         main()
     except Exception as e:
