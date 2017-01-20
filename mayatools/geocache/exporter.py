@@ -100,7 +100,7 @@ class Exporter(sgpublish.exporter.maya.Exporter):
 
         if not on_farm:
             for args in to_cache:
-               0 export_cache(*args, as_abc=as_abc, alembic_metadata=alembic_metadata)
+                export_cache(*args, as_abc=as_abc, alembic_metadata=alembic_metadata)
 
 
 def main(argv=None):
@@ -165,7 +165,7 @@ def main(argv=None):
     log.info('DONE')
 
 
-if __name__ == '__main__' and __package__ is None:
+if __name__ == '__main__':
     try:
         main()
     except Exception as e:

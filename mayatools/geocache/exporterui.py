@@ -133,7 +133,7 @@ class Dialog(QtGui.QDialog):
         '''
         version = int(cmds.about(version=True).split()[0])
         layout = QtGui.QHBoxLayout()
-        options_box.layout().addLayout(layout)
+        #options_box.layout().addLayout(layout)
         label = QtGui.QLabel("Store Points In:")
         label.setEnabled(version >= 2013)
         layout.addWidget(label)
@@ -157,7 +157,7 @@ class Dialog(QtGui.QDialog):
             self._world_radio.setChecked(True)
         
         self._abc_check = QtGui.QCheckBox("Also export as Alembic")
-        options_box.layout().addWidget(self._abc_check)
+        #options_box.layout().addWidget(self._abc_check)
         if hasattr(cmds, 'AbcExport'):
             self._abc_check.setChecked(True)
         else:

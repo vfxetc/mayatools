@@ -272,8 +272,8 @@ def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False,
         mel.eval('doCreateGeometryCache %s { %s }' % (
             version,
             ', '.join('"%s"' % x for x in args),
-        )) '''
-
+        ))
+'''
         if as_abc:
 
             if not cmds.pluginInfo('AbcExport', q=True, loaded=True):
