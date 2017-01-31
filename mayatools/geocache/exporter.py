@@ -47,6 +47,9 @@ class Exporter(sgpublish.exporter.maya.Exporter):
 
     def export_publish(self, publish, **kwargs):
         # Set the path to the directory.
+        '''
+        sets up metadata and does the export in shotgun.
+        '''
         publish.path = publish.directory
         kwargs['name'] = '%s - v%04d' % (publish.name, publish.version)
         kwargs['alembic_metadata'] = metadata = (kwargs.get('alembic_metadata') or {}).copy()
@@ -60,10 +63,12 @@ class Exporter(sgpublish.exporter.maya.Exporter):
         self.export(publish.directory, publish.path, **kwargs)
 
     def export(self, directory, path, to_cache, on_farm=False, as_abc=True, alembic_metadata=None, name=None):
-
+        '''
+        checks for settings and exports into directory. 
+        '''
         if not os.path.exists(directory):
             os.makedirs(directory)
-
+ 
         # Save the scene itself into the directory.
         src_path = cmds.file(q=True, sceneName=True)
         src_ext = os.path.splitext(src_path)[1]
