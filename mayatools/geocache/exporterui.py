@@ -6,14 +6,13 @@ import re
 from maya import cmds, mel
 
 from sgfs.ui import product_select
+from sgpublish.exporter.ui.publish.generic import PublishSafetyError
 from uitools.qt import Qt, QtCore, QtGui
 import sgfs.ui.scene_name.widget as scene_name
-
 import sgpublish.exporter.ui.publish.maya
 import sgpublish.exporter.ui.tabwidget
 import sgpublish.exporter.ui.workarea
 import sgpublish.uiutils
-from sgpublish.exporter.ui.publish.generic import PublishSafetyError
 
 from .exporter import Exporter, cache_name_from_cache_set
 
@@ -156,14 +155,6 @@ class Dialog(QtGui.QDialog):
         else:
             self._world_radio.setChecked(True)
         
-        self._abc_check = QtGui.QCheckBox("Also export as Alembic")
-        #options_box.layout().addWidget(self._abc_check)
-        if hasattr(cmds, 'AbcExport'):
-            self._abc_check.setChecked(True)
-        else:
-            self._abc_check.setDisabled(True)
-        
-        self._abc_check.setChecked(True)
         self._exporter = Exporter()
         self._exporter_widget = sgpublish.exporter.ui.tabwidget.Widget()
         self.layout().addWidget(self._exporter_widget)
@@ -197,11 +188,7 @@ class Dialog(QtGui.QDialog):
         button = self._local_button = QtGui.QPushButton("Process Locally")
         button.clicked.connect(self._on_process_button)
         button_layout.addWidget(button)
-        '''
-        button = self._qube_button = QtGui.QPushButton("Process on Farm")
-        button.clicked.connect(self._on_queue_button)
-        button_layout.addWidget(button)
-        '''
+
 
     def _reload(self):
         
@@ -258,7 +245,7 @@ class Dialog(QtGui.QDialog):
                 
                 yield members, name, frame_from, frame_to, world
         
-    def _on_process_button(self, on_farm=False):
+    def _on_process_button(self):
         
         to_cache = list(self._iter_to_cache())
         if not to_cache:
@@ -268,8 +255,6 @@ class Dialog(QtGui.QDialog):
         try:
             publisher = self._exporter_widget.export(
                 to_cache=to_cache,
-                as_abc=self._abc_check.isChecked(),
-                on_farm=on_farm,
             )
         except PublishSafetyError:
             return
@@ -277,9 +262,6 @@ class Dialog(QtGui.QDialog):
         if publisher:
             sgpublish.uiutils.announce_publish_success(publisher)
         self.close()
-        
-    def _on_queue_button(self):
-        self._on_process_button(on_farm=True)
 
     def _on_cancel_button(self):
         self.close()

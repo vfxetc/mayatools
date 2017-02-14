@@ -224,40 +224,10 @@ def get_existing_cache_mappings():
     return mappings
 
 
-def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False, alembic_metadata=None):
-
-    if not os.path.exists(path):
-        os.makedirs(path)
+def export_cache(members, path, name, frame_from, frame_to, world, alembic_metadata=None):
     
-    # See maya_base/scripts/other/doCreateGeometryCache.mel
-    maya_version = int(cmds.about(version=True).split()[0])
-    version = 6 if maya_version >= 2013 else 4
-    
-    args = [
-        0, # 0 -> Use provided start/end frame.
-        frame_from,
-        frame_to,
-        "OneFilePerFrame", # File distribution mode.
-        0, # Refresh during caching?
-        path, # Directory for cache files.
-        0, # Create cache per geometry?
-        name, # Name of cache file.
-        0, # Is that name a prefix?
-        "export", # Action to perform.
-        1, # Force overwrites?
-        1, # Simulation rate.
-        1, # Sample multiplier.
-        0, # Inherit modifications from cache to be replaced?
-        1, # Save as floats.
-    ]
-    
-    if version >= 6:
-        args.extend((
-            "mcc", # Cache format.
-            int(world), # Save in world space?
-        ))
-    
-        
+    # NOTE: This may not be nessesary since we are only doing Alembic export now.
+    # Perhaps it was needed for MCCs. That is generally true for a LOT of the below.
     cmds.refresh(suspend=True)
     original_selection = cmds.ls(selection=True)
     hidden_layers = [layer for layer in cmds.ls(type="displayLayer") or () if not cmds.getAttr(layer + '.visibility')]
@@ -266,60 +236,58 @@ def export_cache(members, path, name, frame_from, frame_to, world, as_abc=False,
         
         for layer in hidden_layers:
             cmds.setAttr(layer + '.visibility', True)
-        
-        cmds.select(members, replace=True)
-        '''
-        mel.eval('doCreateGeometryCache %s { %s }' % (
-            version,
-            ', '.join('"%s"' % x for x in args),
-        ))
-'''
-        if as_abc:
+    
+        if not cmds.pluginInfo('AbcExport', q=True, loaded=True):
+            print 'Loading AbcExport plugin...'
+            cmds.loadPlugin('AbcExport')
 
-            if not cmds.pluginInfo('AbcExport', q=True, loaded=True):
-                print 'Loading AbcExport plugin...'
-                cmds.loadPlugin('AbcExport')
-
-            # We need to grab the shapes from the transforms.
-            shapes = []
-            transforms = []
-            for node in members:
-                if cmds.nodeType(node) == 'transform':
-                    node_shapes = cmds.listRelatives(node, children=True, shapes=True)
-                    node_shapes = isolate_deformed_shape(node_shapes)
-                    if len(node_shapes) != 1:
-                        cmds.warning('Transform %s did not have one obvious shape: %r' % (node, node_shapes))
-                    shapes.extend(node_shapes)
-                else:
-                    shapes.append(node)
-
-            # Include the first renderable camera.
-            cameras = get_renderable_cameras()
-            if not cameras:
-                cmds.warning('No renderable cameras to export.')
+        # We need to grab the shapes from the transforms.
+        shapes = []
+        transforms = []
+        for node in members:
+            if cmds.nodeType(node) == 'transform':
+                node_shapes = cmds.listRelatives(node, children=True, shapes=True)
+                node_shapes = isolate_deformed_shape(node_shapes)
+                if len(node_shapes) != 1:
+                    cmds.warning('Transform %s did not have one obvious shape: %r' % (node, node_shapes))
+                shapes.extend(node_shapes)
             else:
-                shapes.append(cameras[0])
-                if len(cameras) > 1:
-                    cmds.warning('%s renderable cameras; only exporting %r' % (len(cameras), cameras[0]))
+                shapes.append(node)
 
-            file_info = cmds.fileInfo(q=True)
-            file_info = dict(zip(file_info[0::2], file_info[1::2]))
-            metadata = (alembic_metadata or {}).copy()
-            metadata.update(
-                file_info=file_info,
-                references=[str(x) for x in cmds.file(query=True, reference=True) or []],
-                sets=reduce_sets(),
-            )
+        # Include the first renderable camera.
+        cameras = get_renderable_cameras()
+        if not cameras:
+            cmds.warning('No renderable cameras to export.')
+        else:
+            shapes.append(cameras[0])
+            if len(cameras) > 1:
+                cmds.warning('%s renderable cameras; only exporting %r' % (len(cameras), cameras[0]))
 
-            cmds.select(shapes, replace=True)
+        file_info = cmds.fileInfo(q=True)
+        file_info = dict(zip(file_info[0::2], file_info[1::2]))
+        metadata = (alembic_metadata or {}).copy()
+        metadata.update(
+            file_info=file_info,
+            references=[str(x) for x in cmds.file(query=True, reference=True) or []],
+            sets=reduce_sets(),
+        )
 
-            abctools.maya.export.export(path + '.abc',
-                selection=True,
-                uvWrite=True,
-                frameRange=(int(frame_from), int(frame_to)),
-                worldSpace=bool(world),
-                metadata=metadata,
-            )
+        cmds.select(shapes, replace=True)
+
+        dir_ = os.path.dirname(os.path.abspath(path))
+        if not os.path.exists(dir_):
+            os.makedirs(dir_)
+
+        # It is kinda silly that the "path" is supposed to be given with no
+        # extension, but that is historical (due to MCC being the primary
+        # originally).
+        abctools.maya.export.export(path + '.abc',
+            selection=True,
+            uvWrite=True,
+            frameRange=(int(frame_from), int(frame_to)),
+            worldSpace=bool(world),
+            metadata=metadata,
+        )
     
     finally:
             

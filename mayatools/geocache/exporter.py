@@ -62,7 +62,7 @@ class Exporter(sgpublish.exporter.maya.Exporter):
         }
         self.export(publish.directory, publish.path, **kwargs)
 
-    def export(self, directory, path, to_cache, on_farm=False, as_abc=True, alembic_metadata=None, name=None):
+    def export(self, directory, path, to_cache, alembic_metadata=None, name=None):
         '''
         checks for settings and exports into directory. 
         '''
@@ -82,30 +82,8 @@ class Exporter(sgpublish.exporter.maya.Exporter):
 
         # Add the path.
         to_cache = self.add_path_to_work(path, to_cache)
-
-        if on_farm:
-
-            executor = qbfutures.maya.Executor(
-                cpus=4,
-                clone_environ=True,
-                create_tempfile=True,
-            )
-            
-            with executor.batch('Geocache Export - %s' % (name or os.path.basename(path))) as batch:
-                for args in to_cache:
-                    members, path, name, frame_from, frame_to, world = args
-                    batch.submit_ext(export_cache, args=args, kwargs={'as_abc': as_abc, 'alembic_metadata': alembic_metadata}, name=str(name))
-            
-            try:
-                from PyQt4 import QtGui
-            except ImportError:
-                print 'job', batch.futures[0].job_id
-            else:
-                QtGui.QMessageBox.information(None, "Submitted to Qube", "The geocache export was submitted as job %d" % batch.futures[0].job_id)
-
-        if not on_farm:
-            for args in to_cache:
-                export_cache(*args, as_abc=as_abc, alembic_metadata=alembic_metadata)
+        for args in to_cache:
+            export_cache(*args, alembic_metadata=alembic_metadata)
 
 
 def main(argv=None):
@@ -116,7 +94,6 @@ def main(argv=None):
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--no-world', action='store_true')
-    parser.add_argument('--no-abc', action='store_true')
     parser.add_argument('-s', '--start', type=int)
     parser.add_argument('-e', '--end', type=int)
     parser.add_argument('-d', '--out-dir')
@@ -147,7 +124,6 @@ def main(argv=None):
     frame_to   = args.end   or cmds.playbackOptions(q=True, animationEndTime=True)
     
     world = not args.no_world
-    as_abc = not args.no_abc
 
     to_cache = []
     for cache_set in cache_sets:
@@ -161,11 +137,11 @@ def main(argv=None):
     if 'link' in publisher_kwargs or 'template' in publisher_kwargs:
         if 'template' not in publisher_kwargs:
             publisher_kwargs['name'] = name
-        exporter.publish(export_kwargs=dict(to_cache=to_cache, as_abc=as_abc), **publisher_kwargs)
+        exporter.publish(export_kwargs=dict(to_cache=to_cache), **publisher_kwargs)
 
     else:
         directory = args.out_dir or os.path.join(args.scene, '..', 'data', 'geo_cache', name)
-        exporter.export(directory=directory, path=directory, to_cache=to_cache, as_abc=as_abc)
+        exporter.export(directory=directory, path=directory, to_cache=to_cache)
 
     log.info('DONE')
 
