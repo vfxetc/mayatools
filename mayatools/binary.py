@@ -194,6 +194,8 @@ for base in ('FORM', 'CAT ', 'LIST', 'PROP'):
         _group_tags.add(tag)
         _tag_alignments[tag] = alignment
 
+def _group_is_64bit(tag):
+    return _tag_alignments.get(tag) == 8
 
 def _get_tag_alignment(tag):
     return _tag_alignments.get(tag, 2)
@@ -284,11 +286,12 @@ class Group(Node):
         self.alignment = _get_tag_alignment(self.type)
         self.end = self.start + self.size + _get_padding(self.size, self.alignment)
 
-    def pprint(self, _indent=0):
+    def pprint(self, data, _indent=0):
         """Print a structured representation of the group to stdout."""
-        print _indent * '    ' + ('%s group (%s); %d bytes for %d children:' % (self.tag, self.type, self.size, len(self.children)))
+        tag = self.tag if self.tag.isalnum() else '0x' + self.tag.encode('hex')
+        print _indent * '    ' + ('%s group (%s); %d bytes for %d children:' % (tag, self.type, self.size, len(self.children)))
         for child in self.children:
-            child.pprint(_indent=_indent + 1)
+            child.pprint(data=data, _indent=_indent + 1)
 
     def dumps_iter(self):
         output = []
@@ -316,7 +319,7 @@ class Chunk(object):
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
 
-    def pprint(self, _indent):
+    def pprint(self, data, _indent):
         """Print a structured representation of the node to stdout."""
         encoding = tag_encoding.get(self.tag)
         if encoding:
@@ -324,7 +327,9 @@ class Chunk(object):
         else:
             header = '%d raw bytes' % len(self.data)
         print _indent * '    ' + ('%s; %s' % (self.tag, header))
-        print hexdump(self.data, self.offset, tag=self.tag, indent=(_indent + 1) * '    ').rstrip()
+
+        if data:
+            print hexdump(self.data, self.offset, tag=self.tag, indent=(_indent + 1) * '    ').rstrip()
 
     def __repr__(self):
         return '<%s %s; %d bytes>' % (self.__class__.__name__, self.tag, len(self.data))
@@ -401,10 +406,19 @@ class Parser(Node):
     def close(self):
         self._file.close()
 
-    def pprint(self, _indent=-1):
+    def pprint(self, data, _indent=-1):
         """Print a structured representation of the file to stdout."""
         for child in self.children:
-            child.pprint(_indent=_indent + 1)
+            child.pprint(data, _indent=_indent + 1)
+
+    def _group_is_64bit(self):
+        return _group_is_64bit(self._group_stack[-1].tag)
+
+    def _read_int(self):
+        if self._group_is_64bit:
+            return struct.unpack(">Q", self._file.read(8))[0]
+        else:
+            return struct.unpack(">L", self._file.read(4))[0]
 
     def parse_next(self):
         """Parse to the next :class:`Group` or :class:`Chunk`, returning it.
@@ -421,12 +435,19 @@ class Parser(Node):
         tag = self._file.read(4)
         if not tag:
             return
-        size = struct.unpack(">L", self._file.read(4))[0]
+
+        offset = self._file.tell()
+        
+        if self._group_is_64bit:
+            self._file.read(4) # For whatever reason.
+
+        size = self._read_int()
 
         if tag in _group_tags:
 
-            offset = self._file.tell()
+
             group_tag = self._file.read(4)
+
             group = Group(group_tag, tag, size, offset)
 
             # Add it as a child of the current group.
@@ -439,8 +460,13 @@ class Parser(Node):
 
         else:
 
-            offset = self._file.tell()
-            data = self._file.read(size)
+            
+            if True:
+                data = self._file.read(size)
+            else:
+                data = ''
+                self._file.seek(size, 1)
+
             chunk = Chunk(tag, data, offset)
 
             assert self._group_stack, 'Data chunk outside of group.'
@@ -467,6 +493,8 @@ if __name__ == '__main__':
     opt_parser.add_option('-t', '--type', action='append', default=[])
     opt_parser.add_option('-n', '--no-types', action='store_true')
     opt_parser.add_option('-x', '--hex', action='store_true')
+    opt_parser.add_option('-d', '--data', action='store_true')
+    opt_parser.add_option('-s', '--size', action='store_true')
     opts, args = opt_parser.parse_args()
 
     if opts.hex:
@@ -493,5 +521,5 @@ if __name__ == '__main__':
     for arg in args:
         parser = Parser(open(arg))
         parser.parse_all()
-        parser.pprint()
+        parser.pprint(data=opts.data)
 
