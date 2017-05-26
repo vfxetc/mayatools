@@ -251,6 +251,12 @@ class Node(object):
             return args[0]
         raise KeyError(tag)
 
+    def walk(self):
+        yield self
+        for child in self.children:
+            for x in child.walk():
+                yield x
+
     def dumps_iter(self):
         """Iterate chunks of the packed version of this node and its children.
 
@@ -322,6 +328,9 @@ class Chunk(object):
         self.offset = offset
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
+
+    def walk(self):
+        yield self
 
     def pprint(self, data, _indent):
         """Print a structured representation of the node to stdout."""
@@ -411,6 +420,12 @@ class Parser(Node):
 
     def close(self):
         self._file.close()
+
+    def walk(self):
+        yield self
+        for child in self.children:
+            for x in child.walk():
+                yield x
 
     def pprint(self, data, _indent=-1):
         """Print a structured representation of the file to stdout."""
@@ -507,7 +522,7 @@ if __name__ == '__main__':
     opt_parser.add_option('-n', '--no-types', action='store_true')
     opt_parser.add_option('-x', '--hex', action='store_true')
     opt_parser.add_option('-d', '--data', action='store_true')
-    opt_parser.add_option('-s', '--size', action='store_true')
+    opt_parser.add_option('-s', '--sort', choices=['size'])
     opts, args = opt_parser.parse_args()
 
     if opts.hex:
@@ -534,5 +549,10 @@ if __name__ == '__main__':
     for arg in args:
         parser = Parser(open(arg))
         parser.parse_all()
+        if opts.sort:
+            for node in parser.walk():
+                children = getattr(node, 'children', None)
+                if isinstance(children, list):
+                    children.sort(key=lambda x: getattr(x, opts.sort, 0), reverse=True)
         parser.pprint(data=opts.data)
 
