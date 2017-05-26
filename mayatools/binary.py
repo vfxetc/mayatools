@@ -289,7 +289,11 @@ class Group(Node):
     def pprint(self, data, _indent=0):
         """Print a structured representation of the group to stdout."""
         tag = self.tag if self.tag.isalnum() else '0x' + self.tag.encode('hex')
-        print _indent * '    ' + ('%s group (%s); %d bytes for %d children:' % (tag, self.type, self.size, len(self.children)))
+        
+        crea = self.children[0] if (self.children and self.children[0].tag == 'CREA') else None
+        name = crea.data.split('\0')[0][1:] if crea else None
+        name = ' "%s"' % name if name else ''
+        print _indent * '    ' + ('%s group%s (%s); %d bytes for %d children:' % (tag, name, self.type, self.size, len(self.children)))
         for child in self.children:
             child.pprint(data=data, _indent=_indent + 1)
 
