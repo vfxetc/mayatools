@@ -30,13 +30,13 @@ settings = {
 def playblast(**kwargs):
 
     # Extract the camera from the active view.
-    current_panel = cmds.getPanel(withFocus=True)
-    panel_type = cmds.getPanel(typeOf=current_panel) 
+    panel = cmds.playblast(activeEditor=True)
+    panel_type = cmds.getPanel(typeOf=panel) 
     if panel_type == 'modelPanel':
-        camera = cmds.modelPanel(current_panel, query=True, camera=True)
+        camera = cmds.modelPanel(panel, query=True, camera=True)
         camera_attrs = dict((camera + '.' + k, v) for k, v in settings['camera_attrs'].iteritems())
     else:
-        cmds.warning('Current panel is not a modelling panel; playblasts will not correctly setup the camera')
+        cmds.warning('%s is not a modelling panel; playblasts will not correctly setup the camera' % panel)
         camera = None
         camera_attrs = {}
     
