@@ -401,6 +401,8 @@ class Parser(Node):
 
         self._file = file
         self._group_stack = []
+        self._is_64bit = None
+
         self.children = []
 
     def close(self):
@@ -411,11 +413,8 @@ class Parser(Node):
         for child in self.children:
             child.pprint(data, _indent=_indent + 1)
 
-    def _group_is_64bit(self):
-        return _group_is_64bit(self._group_stack[-1].tag)
-
     def _read_int(self):
-        if self._group_is_64bit:
+        if self._is_64bit:
             return struct.unpack(">Q", self._file.read(8))[0]
         else:
             return struct.unpack(">L", self._file.read(4))[0]
@@ -436,10 +435,20 @@ class Parser(Node):
         if not tag:
             return
 
-        offset = self._file.tell()
+        if self._is_64bit is None:
+            if tag == 'FOR8':
+                self._is_64bit = True
+            elif tag == 'FOR4':
+                self._is_64bit = False
+            else:
+                raise ValueError('Invalid magic tag.', tag)
         
-        if self._group_is_64bit:
-            self._file.read(4) # For whatever reason.
+        if self._is_64bit:
+            # Tags become 8 bytes, but they are largely just right-padded versions
+            # of the 4-byte tags.
+            self._file.read(4)
+
+        offset = self._file.tell()
 
         size = self._read_int()
 
