@@ -10,7 +10,9 @@ def get_all_sound_nodes():
 def get_saved_sound_node():
 
     if not cmds.objExists('uiConfigurationScriptNode'):
-        raise ValueError('No uiConfigurationScriptNode.')
+        # TODO: Should this actually be a warning?
+        cmds.warning('No uiConfigurationScriptNode.')
+        return
 
     source = cmds.getAttr('uiConfigurationScriptNode.before') or ''
     m = re.search(r'^\s*timeControl(?:\s+.+?)? -sound (\w+)(?:\s+.+\s*)?;\s*$', source, flags=re.MULTILINE)
