@@ -166,7 +166,7 @@ def iter_existing_cache_connections():
             yield cache_node, cache_path, channel, None, None
             continue
                 
-        shapes = cmds.listRelatives(transform, children=True, shapes=True) or []
+        shapes = cmds.listRelatives(transform, children=True, shapes=True) or ()
         shapes = isolate_deformed_shape(shapes)
 
         if len(shapes) != 1:
@@ -246,7 +246,7 @@ def export_cache(members, path, name, frame_from, frame_to, world, alembic_metad
         transforms = []
         for node in members:
             if cmds.nodeType(node) == 'transform':
-                node_shapes = cmds.listRelatives(node, children=True, shapes=True)
+                node_shapes = cmds.listRelatives(node, children=True, shapes=True) or ()
                 node_shapes = isolate_deformed_shape(node_shapes)
                 if len(node_shapes) != 1:
                     cmds.warning('Transform %s did not have one obvious shape: %r' % (node, node_shapes))
