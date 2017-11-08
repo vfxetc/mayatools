@@ -239,7 +239,8 @@ class Dialog(QtGui.QDialog):
                 
                 if not set_._enabled_checkbox.isChecked():
                     continue
-        
+                
+                # NOTE: `sets` does not have `long` OR `fullPath` kwargs!
                 members = cmds.sets(set_._path, q=True)
                 name = set_._cache_name or '__cache__'
                 

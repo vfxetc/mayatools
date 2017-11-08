@@ -180,19 +180,26 @@ def iter_existing_cache_connections():
     
 
 def isolate_deformed_shape(shapes):
+
+    if len(shapes) == 1:
+        return shapes
+
     # Maya will often add a "Deformed" copy of a mesh. Sometimes there is
     # a "Orig". Sometimes there are both.
-    if len(shapes) > 1:
-        a = basename(shapes[0])
-        for other in shapes[1:]:
-            b = basename(other)
-            if not (b[:len(a)] == a and
-                b[len(a):] in ('Deformed', 'Orig')
-            ):
-                break
-        else:
-            shapes = [shapes[0]]
-    return shapes
+
+    # TODO: Is the one we want ever not the first shape?
+    first_base = basename(shapes[0])
+    ignore_re = re.compile(r'^{}(Deformed|Orig)\d*$'.format(re.escape(first_base)))
+
+    # Lets go collecting the other shapes which are the same as the first, but
+    # suffixed with 'Deformed', 'Orig', or one of those but also with digits.
+    interesting = [shapes[0]]
+    for other in shapes[1:]:
+        other_base = basename(other)
+        if not ignore_re.match(other_base):
+            interesting.append(other)
+
+    return interesting
 
 
 def get_existing_cache_mappings():
@@ -272,7 +279,18 @@ def export_cache(members, path, name, frame_from, frame_to, world, alembic_metad
             sets=reduce_sets(),
         )
 
-        cmds.select(shapes, replace=True)
+        try:
+            cmds.select(shapes, replace=True)
+        except ValueError as e:
+            if 'More than one object matches name' not in e.args[0]:
+                raise
+            ambiguous = []
+            for shape in shapes:
+                try:
+                    cmds.select(shape, replace=True)
+                except ValueError as e2:
+                    ambiguous.append(shape)
+            raise ValueError('More than one object matches name:', ambiguous)
 
         dir_ = os.path.dirname(os.path.abspath(path))
         if not os.path.exists(dir_):
