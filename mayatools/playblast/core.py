@@ -1,3 +1,5 @@
+from __future__ import division
+
 import tempfile
 
 from maya import cmds
@@ -6,18 +8,12 @@ from .. import context
 
 
 settings = {
-    'attrs': {
+    'global_attrs': {
         'defaultRenderGlobals.imageFormat': 8, # JPEG.
-        'defaultResolution.width': 1280,
-        'defaultResolution.height': 720,
-        'defaultResolution.deviceAspectRatio': 1280.0 / 720,
-        'defaultResolution.pixelAspect': 1.0,
-        'defaultResolution.dotsPerInch': 72,
-        'defaultResolution.pixelDensityUnits': 0,
-    },
-    'camera_attrs': {
-        'horizontalFilmOffset': 0,
-        'verticalFilmOffset': 0,
+        # 'defaultResolution.deviceAspectRatio': 1280.0 / 720,
+        # 'defaultResolution.pixelAspect': 1.0,
+        # 'defaultResolution.dotsPerInch': 72,
+        # 'defaultResolution.pixelDensityUnits': 0,
     },
     'camera': {
         'displayFilmGate': 0,
@@ -34,19 +30,34 @@ def playblast(**kwargs):
     panel_type = cmds.getPanel(typeOf=panel) 
     if panel_type == 'modelPanel':
         camera = cmds.modelPanel(panel, query=True, camera=True)
-        camera_attrs = dict((camera + '.' + k, v) for k, v in settings['camera_attrs'].iteritems())
     else:
         cmds.warning('%s is not a modelling panel; playblasts will not correctly setup the camera' % panel)
         camera = None
-        camera_attrs = {}
     
-    # These should really be controlled elsewhere...
-    kwargs.setdefault('widthHeight', (1280, 720))
+    width = cmds.getAttr('defaultResolution.width')
+    height = cmds.getAttr('defaultResolution.height')
+
+    # Get requested resolution from kwargs. Need to do this in two stages.
+    max_width = kwargs.pop('width', 1024)
+    max_height = kwargs.pop('height', 540)
+    max_width, max_height = kwargs.pop('widthHeight', (max_width, max_height))
+
+    width_ratio = width / max_width
+    height_ratio = height / max_height
+    if width_ratio > 1 or height_ratio > 1:
+        if width_ratio > height_ratio:
+            height = max_width * height // width
+            width = max_width
+        else:
+            width = max_height * width // height
+            height = max_height
+                
+    kwargs['widthHeight'] = (width, height)
     kwargs.setdefault('offScreen', True)
     kwargs.setdefault('forceOverwrite', True)
     kwargs.setdefault('percent', 100)
     
-    with context.attrs(settings['attrs'], camera_attrs):
+    with context.attrs(settings['global_attrs']):
         with context.command(cmds.camera, camera, edit=True, **(settings['camera'] if camera else {})):
             return cmds.playblast(**kwargs)
 
