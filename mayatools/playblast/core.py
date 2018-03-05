@@ -51,7 +51,11 @@ def playblast(**kwargs):
         else:
             width = max_height * width // height
             height = max_height
-                
+    
+    # Make sure they are divisible by 2.
+    width  += width % 2
+    height += height % 2
+
     kwargs['widthHeight'] = (width, height)
     kwargs.setdefault('offScreen', True)
     kwargs.setdefault('forceOverwrite', True)
