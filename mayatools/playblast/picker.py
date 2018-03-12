@@ -3,7 +3,8 @@ import collections
 import datetime
 import shutil
 import subprocess
-from uitools.qt import Qt, QtCore, QtGui
+
+from uitools.qt import Q
 
 
 PlayblastInfo = collections.namedtuple('PlayblastInfo', (
@@ -38,24 +39,24 @@ def parse_audio_txt(path):
 
     return audio, maya_file, frame_rate
 
-class PlayblastThumbnail(QtGui.QLabel):
+class PlayblastThumbnail(Q.Label):
     
     def __init__(self, path):
         self._path = path
         self._loaded = False
         super(PlayblastThumbnail, self).__init__()
         self.setAlignment(Qt.AlignCenter)
-        self.setPixmap(QtGui.QPixmap(self._path).scaled(100, 57, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.setPixmap(Q.Pixmap(self._path).scaled(100, 57, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         self._loaded = True
 
     def sizeHint(self):
         if self._loaded:
             return self.pixmap().size()
         else:
-            return QtCore.QSize(100, 57)
+            return Q.Size(100, 57)
 
-class PlayblastTable(QtGui.QTableWidget):
-    refresh = QtCore.pyqtSignal()
+class PlayblastTable(Q.TableWidget):
+    refresh = Q.pyqtSignal()
 
     def __init__(self, parent = None):
         super(PlayblastTable, self).__init__(parent)
@@ -68,7 +69,7 @@ class PlayblastTable(QtGui.QTableWidget):
         self.setSelectionBehavior(self.SelectRows)
         self.setSortingEnabled(True)
         self.sortItems(2, Qt.DescendingOrder)
-        self.setEditTriggers(QtGui.QAbstractItemView.NoEditTriggers)
+        self.setEditTriggers(Q.AbstractItemView.NoEditTriggers)
         self.itemDoubleClicked .connect(lambda x: self.flipbook_playblast())
 
     def add_playblasts(self, playblasts):
@@ -81,14 +82,14 @@ class PlayblastTable(QtGui.QTableWidget):
             thumb.playblast = playblast
             self.setCellWidget(row, 0, thumb)
 
-            name = QtGui.QTableWidgetItem(playblast.name)
+            name = Q.TableWidgetItem(playblast.name)
             self.setItem(row, 1, name)
 
-            date = QtGui.QTableWidgetItem(playblast.created_at.isoformat(' '))
+            date = Q.TableWidgetItem(playblast.created_at.isoformat(' '))
             self.setItem(row, 2, date)
 
     def contextMenuEvent(self, event):
-        menu = QtGui.QMenu(self)
+        menu = Q.Menu(self)
         flipbook_action = menu.addAction("Flipbook")
         flipbook_action.triggered.connect(self.flipbook_playblast)
         qt_action = menu.addAction("Make Quicktime")
@@ -157,11 +158,11 @@ class PlayblastTable(QtGui.QTableWidget):
         print subprocess.list2cmdline(cmd)
         subprocess.Popen(cmd)
 
-class Picker(QtGui.QTabWidget):
+class Picker(Q.TabWidget):
     
-    pathChanged = QtCore.pyqtSignal(object)
+    pathChanged = Q.pyqtSignal(object)
     
-    def __init__(self, parent = None, selection_mode = QtGui.QTableWidget.SingleSelection,):
+    def __init__(self, parent = None, selection_mode = Q.TableWidget.SingleSelection,):
         super(Picker, self).__init__(parent)
         
         self._playblasts = []
@@ -270,7 +271,7 @@ class Picker(QtGui.QTabWidget):
 
 if __name__ == '__main__':
     import sys
-    app = QtGui.QApplication([])
+    app = Q.Application([])
     widget = Picker()
     widget.autoSetMinimumWidth()
     widget.show()
