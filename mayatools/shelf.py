@@ -26,7 +26,7 @@ def dispatch(entrypoint, args=(), kwargs={}, reload=None):
         return func(*args, **kwargs)
 
 
-def _iter_buttons(path, _visited=None):
+def _iter_buttons(path, include_dirs, _visited=None):
     """Recursive iterator across the buttons in a path, respecting includes."""
     
     # Stop infinite recursion.
@@ -39,30 +39,40 @@ def _iter_buttons(path, _visited=None):
     serialized = open(path).read()
     buttons = yaml.load_all(serialized)
     for button in buttons:
+
         if not button:
             continue
+
         if 'include' in button:
-            include_path = os.path.join(os.path.dirname(path), button['include'])
+
+            for dir_ in include_dirs:
+                path = os.path.join(dir_, button['include'])
+                if os.path.exits(path):
+                    break
+            else:
+                raise ValueError("Could not find included file.", button['include'])
+
             # Pass a copy of the visited set so that there is no recursion, but
             # we are able to include the same thing (e.g. a spacer) twice.
-            for x in _iter_buttons(include_path, set(_visited)):
+            for x in _iter_buttons(path, include_dirs, set(_visited)):
                 yield x
+
         else:
             yield button
 
 
 
 
-def load(shelf_path=None, image_roots=None):
+def load(shelf_dirs=None, image_dirs=None):
     
     # Default to $MAYA_SHELF_PATH.
-    if shelf_path is None:
-        shelf_path = os.environ.get('MAYA_SHELF_PATH')
-        shelf_path = shelf_path.split(':') if shelf_path else []
+    if shelf_dirs is None:
+        shelf_dirs = os.environ.get('MAYA_SHELF_PATH')
+        shelf_dirs = shelf_dirs.split(':') if shelf_dirs else []
     
     # Single strings should be a list.
-    if isinstance(shelf_path, basestring):
-        shelf_path = [shelf_path]
+    if isinstance(shelf_dirs, basestring):
+        shelf_dirs = [shelf_dirs]
     
     # Clear out the button memory.
     _uuid_to_buttons.clear()
@@ -80,91 +90,104 @@ def load(shelf_path=None, image_roots=None):
             opts[key] = cmds.optionVar(q="shelf%s%d" % (key, i + 1))
 
     new_shelves = set()
-    image_roots = image_roots or ()
+    image_dirs = image_dirs or ()
 
-    for shelf_dir in shelf_path:
+    # Collect all shelves, and sort them by basename so no shelf directory
+    # gets priority.
+    shelf_paths = []
+    for shelf_dir in shelf_dirs:
         try:
-            file_names = sorted(os.listdir(shelf_dir))
+            file_names = os.listdir(shelf_dir)
         except IOError:
             continue
         for file_name in file_names:
             if file_name.startswith('.') or file_name.startswith('_') or not file_name.endswith('.yml'):
                 continue
-            
-            shelf_name = file_name[:-4]
-            new_shelves.add(shelf_name)
-            print '# %s: %s' % (__name__, shelf_name)
-        
-            # Delete buttons on existing shelves, and create shelves that don't
-            # already exist.
-            if cmds.shelfLayout(shelf_name, q=True, exists=True):
-                # Returns None if not loaded yet, so be careful.
-                for existing_button in cmds.shelfLayout(shelf_name, q=True, childArray=True) or []:
-                    cmds.deleteUI(existing_button)
-                cmds.setParent(layout + '|' + shelf_name)
-            else:
-                cmds.setParent(layout)
-                cmds.shelfLayout(shelf_name)
-        
-            for b_i, button in enumerate(_iter_buttons(os.path.join(shelf_dir, file_name))):
-            
-                button_definition = copy.deepcopy(button)
-            
-                # Defaults and basic setup.
-                button.setdefault('width', 34)
-                button.setdefault('height', 34)
-            
-                # Extract keys to remember buttons.
-                uuids = [button.get('entrypoint'), button.pop('uuid', None)]
-                
-                # Extract other commands.
-                doubleclick = button.pop('doubleclick', None)
-                popup_menu = button.pop('popup_menu', None)
-                context_menu = button.pop('context_menu', None)
-                
-                convert_entrypoints(button)
-            
-                # Find icons
-                image_name = button.get('image')
-                if image_name and not os.path.exists(image_name):
-                    for image_root in image_roots:
-                        image_path = os.path.join(image_root, image_name)
-                        if os.path.exists(image_path):
-                            button['image'] = image_path
-                            break
-                    else:
-                        print 'Could not find button image:', image_name
+            shelf_paths.append(os.path.join(shelf_dir, file_name))
+    shelf_paths.sort(key=os.path.basename)
 
-                # Create the button!
-                try:
-                    button_definition['name'] = button_name = cmds.shelfButton(**button)
-                except TypeError:
-                    print button
-                    raise
+
+    for shelf_path in shelf_paths:
+        
+        shelf_dir, file_name = os.path.split(shelf_path)
+        shelf_name, ext = os.path.splitext(file_name)
+
+        if shelf_name in new_shelves:
+            continue
+
+        new_shelves.add(shelf_name)
+        print '# %s: %s' % (__name__, shelf_name)
+    
+        # Delete buttons on existing shelves, and create shelves that don't
+        # already exist.
+        if cmds.shelfLayout(shelf_name, q=True, exists=True):
+            # Returns None if not loaded yet, so be careful.
+            for existing_button in cmds.shelfLayout(shelf_name, q=True, childArray=True) or []:
+                cmds.deleteUI(existing_button)
+            cmds.setParent(layout + '|' + shelf_name)
+        else:
+            cmds.setParent(layout)
+            cmds.shelfLayout(shelf_name)
+    
+        for b_i, button in enumerate(_iter_buttons(os.path.join(shelf_dir, file_name), shelf_dirs)):
+        
+            button_definition = copy.deepcopy(button)
+        
+            # Defaults and basic setup.
+            button.setdefault('width', 34)
+            button.setdefault('height', 34)
+        
+            # Extract keys to remember buttons.
+            uuids = [button.get('entrypoint'), button.pop('uuid', None)]
             
-                # Save the button for later.
-                for uuid in uuids:
-                    if uuid:
-                        _uuid_to_buttons.setdefault(uuid, []).append(button_definition)
+            # Extract other commands.
+            doubleclick = button.pop('doubleclick', None)
+            popup_menu = button.pop('popup_menu', None)
+            context_menu = button.pop('context_menu', None)
+            
+            convert_entrypoints(button)
+        
+            # Find icons
+            image_name = button.get('image')
+            if image_name and not os.path.exists(image_name):
+                for image_root in image_dirs:
+                    image_path = os.path.join(image_root, image_name)
+                    if os.path.exists(image_path):
+                        button['image'] = image_path
+                        break
+                else:
+                    print 'Could not find button image:', image_name
+
+            # Create the button!
+            try:
+                button_definition['name'] = button_name = cmds.shelfButton(**button)
+            except TypeError:
+                print button
+                raise
+        
+            # Save the button for later.
+            for uuid in uuids:
+                if uuid:
+                    _uuid_to_buttons.setdefault(uuid, []).append(button_definition)
+            
+            # Add a doubleclick action if requested.
+            if doubleclick:
                 
-                # Add a doubleclick action if requested.
-                if doubleclick:
-                    
-                    convert_entrypoints(doubleclick)
-                    
-                    # Only pass through the two keywords that are allowed.
-                    doubleclick = dict((k, v) for k, v in doubleclick.iteritems() if k in ('command', 'sourceType'))
-                    
-                    # Adapt to a doubleclick.
-                    doubleclick['doubleClickCommand'] = doubleclick.pop('command')
-                    
-                    cmds.shelfButton(button_name, edit=True, **doubleclick)
+                convert_entrypoints(doubleclick)
                 
-                # Add a popup menu if requested.
-                if popup_menu:
-                    setup_menu(shelf_button=button_name, button=1, **popup_menu)
-                if context_menu:
-                    setup_menu(shelf_button=button_name, button=3, **context_menu)
+                # Only pass through the two keywords that are allowed.
+                doubleclick = dict((k, v) for k, v in doubleclick.iteritems() if k in ('command', 'sourceType'))
+                
+                # Adapt to a doubleclick.
+                doubleclick['doubleClickCommand'] = doubleclick.pop('command')
+                
+                cmds.shelfButton(button_name, edit=True, **doubleclick)
+            
+            # Add a popup menu if requested.
+            if popup_menu:
+                setup_menu(shelf_button=button_name, button=1, **popup_menu)
+            if context_menu:
+                setup_menu(shelf_button=button_name, button=3, **context_menu)
     
     # Clean up persistant shelf options; Maya (and plugins) will freak out at us if we don't.
     for i, name in enumerate(cmds.shelfTabLayout(layout, q=True, childArray=True)):
