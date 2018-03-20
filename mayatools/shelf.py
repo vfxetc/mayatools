@@ -47,7 +47,7 @@ def _iter_buttons(path, include_dirs, _visited=None):
 
             for dir_ in include_dirs:
                 path = os.path.join(dir_, button['include'])
-                if os.path.exits(path):
+                if os.path.exists(path):
                     break
             else:
                 raise ValueError("Could not find included file.", button['include'])
