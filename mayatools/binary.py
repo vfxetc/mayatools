@@ -513,6 +513,12 @@ class Parser(Node):
             pass
 
 
+def parse(input_):
+    parser = Parser(input_)
+    parser.parse_all()
+    return parser
+
+
 if __name__ == '__main__':
     import sys
     from optparse import OptionParser
