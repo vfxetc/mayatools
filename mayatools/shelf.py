@@ -18,7 +18,6 @@ from . import utils
 _uuid_to_buttons = {}
 
 
-    
 
 def dispatch(entrypoint, args=(), kwargs={}, reload=None):
     with ticket_ui_context():
@@ -168,6 +167,10 @@ def _load_shelf(shelf_path, shelf_dirs, image_dirs):
 
     for b_i, button in enumerate(_iter_buttons(shelf_path, shelf_dirs)):
     
+        if button.get('separator'):
+            cmds.separator(style='shelf')
+            continue
+
         _load_button(copy.deepcopy(button), image_dirs)
 
 
