@@ -25,11 +25,18 @@ def main(argv=None):
         exit(1)
 
     if not opts.dry_run:
+
         if not cmds:
             print("Can't run without --dry-run outside of Maya.")
             exit(2)
-        maya.standalone.initialize()
-        cmds.file(scene_path, open=True)
+
+        # Don't want to re-initialize.
+        try:
+            cmds.file
+        except AttributeError:
+            maya.standalone.initialize()
+
+        cmds.file(scene_path, open=True, force=True)
 
     renderer = None
 
