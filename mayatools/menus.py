@@ -40,8 +40,9 @@ def default_constructor(maya_menu, actions=None):
     for spec in (actions or []):
         
         # First one is a historical typo.
-        if spec.get('seperator') or spec.get('separator'):
-            menu.addSeparator()
+        if spec.get('seperator') or spec.get('separator') or spec.get('divider'):
+            cmds.menuItem(parent=maya_menu, divider=True)
+            #menu.addSeparator()
             continue
         
         # We need to create the menu item via Maya, otherwise it doesn't work
