@@ -55,7 +55,7 @@ def main(argv=None):
         params = args[:action.num_params]
         args[:action.num_params] = []
         if opts.verbose:
-            action.print(*params)
+            print("[mayatools.render] {}: {}".format(action.name, action.format(*params)))
         if not opts.dry_run:
             action(*params)
 
@@ -79,8 +79,20 @@ def main(argv=None):
             renderer = new_renderer()
             continue
 
-        if args[0].startswith('-') and args[0].lstrip('-') in renderer:
-            name = args.pop(0).lstrip('-')
+        if args[0].startswith('-'):
+            
+            if args[0].startswith('--'):
+                name = args.pop(0)[2:]
+                if '=' in name:
+                    name, arg = name.split('=', 1)
+                    args.insert(0, arg)
+
+            else:
+                arg = args.pop(0)
+                name = arg[1]
+                if len(arg) > 2:
+                    args.insert(0, arg[2:])
+
             action = renderer[name]
             run_action(action)
             continue
