@@ -3,6 +3,7 @@ from __future__ import print_function
 import os
 import re
 import sys
+import re
 import xml.etree.ElementTree as etree
 from collections import OrderedDict as odict
 
@@ -66,26 +67,29 @@ def find_descriptor(name):
 
 class Action(object):
 
-    def __init__(self, node):
-        self._tag = node.tag
-        self._node = node
-        self._update(**node.attrib)
-
-        if self._tag == 'melheader':
+    @classmethod
+    def from_node(cls, node):
+        self = cls(**node.attrib)
+        if node.tag == 'melheader':
             self.name = '__init__'
-        if self._tag == 'meltrailer':
+        if node.tag == 'meltrailer':
             self.name = '__main__'
+        return self
 
-    def _update(self, n=None, s=None, t=None, h=None, p=None):
+    def __init__(self, n=None, s=None, t=None, h=None, p=None, desc=None):
         self.name = n
         self.source = s
         self.type = t
-        self.help = h
+        self.desc = desc # Only for seperators.
+        self.help = re.sub(r'\s+', ' ', h) if h else None
         self.num_params = int(p or 0)
 
     def print(self, *args):
         print(self.format(*args))
 
+
+class Seperator(Action):
+    pass
 
 class MelAction(Action):
 
@@ -99,8 +103,8 @@ class MelAction(Action):
 
 class AttrAction(Action):
 
-    def _update(self, **kw):
-        super(AttrAction, self)._update(p=1, **kw)
+    def __init__(self, **kw):
+        super(AttrAction, self).__init__(p=1, **kw)
 
     def format(self, value):
         return 'setAttr {} {}'.format(self.source, value)
@@ -116,11 +120,12 @@ class AttrStringAction(AttrAction):
     pass
 
 
-class Renderer(odict):
+class Renderer(object):
 
     def __init__(self, name):
 
-        super(Renderer, self).__init__()
+        self.actions = {}
+        self.ordered = []
 
         descriptor_path = find_descriptor(name)
         xml = etree.parse(descriptor_path)
@@ -158,23 +163,31 @@ class Renderer(odict):
         for node in root:
 
             if node.tag in ('mel', 'melheader', 'meltrailer'):
-                action = MelAction(node)
+                action = MelAction.from_node(node)
             elif node.tag in ('attr', ):
-                action = AttrAction(node)
+                action = AttrAction.from_node(node)
             elif node.tag == 'attrString':
-                action = AttrStringAction(node)
+                action = AttrStringAction.from_node(node)
             elif node.tag in ('sep', ):
-                continue
+                action = Seperator.from_node(node)
             else:
                 raise ValueError("Unknown node type {!r}.".format(node.tag))
 
-            self[action.name] = action
+            if action.name:
+                self.actions[action.name] = action
+            self.ordered.append(action)
+
+    def __getitem__(self, name):
+        return self.actions[name]
 
     def print_help(self):
-        for action in self.itervalues():
-            print('-' + action.name)
-            if action.help:
-                print('   ' + action.help)
+        max_len = max(len(a.name) if a.name else 0 for a in self.ordered)
+        for action in self.ordered:
+            if action.desc:
+                print()
+                print(action.desc)
+            if action.name or action.help:
+                print('{:{}s} {}'.format(action.name, max_len, action.help or ''))
 
     def split_args(self, args):
 

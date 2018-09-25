@@ -8,7 +8,7 @@ try:
 except ImportError:
     cmds = None
 
-from .renderer import Renderer
+from .renderer import Renderer, MelAction
 
 
 def main(argv=None):
@@ -20,9 +20,7 @@ def main(argv=None):
 
     scene_path = args.pop()
 
-    if opts.dry_run and not opts.verbose:
-        print("--dry-run makes no send without --verbose")
-        exit(1)
+    opts.verbose = opts.verbose or opts.dry_run
 
     if not opts.dry_run:
 
@@ -79,21 +77,32 @@ def main(argv=None):
             renderer = new_renderer()
             continue
 
+        
         if args[0].startswith('-'):
             
-            if args[0].startswith('--'):
-                name = args.pop(0)[2:]
-                if '=' in name:
-                    name, arg = name.split('=', 1)
-                    args.insert(0, arg)
+            arg = args.pop(0)
+
+            if arg == '--mel':
+                action = MelAction(s=args.pop(0))
 
             else:
-                arg = args.pop(0)
-                name = arg[1]
-                if len(arg) > 2:
-                    args.insert(0, arg[2:])
 
-            action = renderer[name]
+                if arg.startswith('--'):
+                    name = arg[2:]
+                    if '=' in name:
+                        name, next_arg = name.split('=', 1)
+                        args.insert(0, next_arg)
+
+                else:
+                    name = arg[1]
+                    if len(arg) > 2:
+                        if renderer[name].num_params:
+                            args.insert(0, arg[2:])
+                        else:
+                            args.insert(0, '-' + arg[2:])
+
+                action = renderer[name]
+            
             run_action(action)
             continue
 

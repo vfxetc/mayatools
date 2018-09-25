@@ -8,7 +8,7 @@ from .command import main as main
 try:
     code = main() or 0
 except SystemExit as e:
-    os._exit(e.args[0])
+    os._exit(e.code or 0)
 except:
     traceback.print_exc()
     os._exit(1)
