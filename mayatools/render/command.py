@@ -72,24 +72,22 @@ def main(argv=None):
 
     while args:
 
-        if args[0] in ('-h', '--help'):
-            args.pop(0)
+        arg = args.pop(0)
+
+        if arg in ('-h', '--help'):
             if renderer:
                 renderer.print_help()
             else:
                 parser.print_help()
             exit()
 
-        if args[0] in ('-r', '--renderer'):
-            args.pop(0)
+        if arg in ('-r', '--renderer'):
             name = args.pop(0)
             renderer = new_renderer(name)
             continue
         
-        if args[0].startswith('-'):
+        if arg.startswith('-'):
             
-            arg = args.pop(0)
-
             if arg.startswith('--'):
                 name = arg[2:]
                 if '=' in name:
