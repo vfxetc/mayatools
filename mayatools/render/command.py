@@ -11,6 +11,19 @@ except ImportError:
 from .renderer import Renderer, MelAction
 
 
+def escape_mel(s):
+    return '"{}"'.format(s.replace('\\', '\\\\').replace('"', '\\"'))
+
+
+_callback_mapping = {
+    'preRender': 'preMel',
+    'postRender': 'postMel',
+    'preLayer': 'preRenderLayerMel',
+    'postLayer': 'postRenderLayerMel',
+    'preFrame': 'preRenderMel',
+    'postFrame': 'postRenderMel',
+}
+
 def main(argv=None):
 
     parser = argparse.ArgumentParser(add_help=None)
@@ -72,37 +85,45 @@ def main(argv=None):
             name = args.pop(0)
             renderer = new_renderer(name)
             continue
-
-        if not renderer:
-            renderer = new_renderer()
-            continue
-
         
         if args[0].startswith('-'):
             
             arg = args.pop(0)
 
-            if arg == '--mel':
-                action = MelAction(s=args.pop(0))
+            if arg.startswith('--'):
+                name = arg[2:]
+                if '=' in name:
+                    name, next_arg = name.split('=', 1)
+                    args.insert(0, next_arg)
 
             else:
+                name = arg[1]
+                if len(arg) > 2:
+                    if renderer[name].num_params:
+                        args.insert(0, arg[2:])
+                    else:
+                        args.insert(0, '-' + arg[2:])
 
-                if arg.startswith('--'):
-                    name = arg[2:]
-                    if '=' in name:
-                        name, next_arg = name.split('=', 1)
-                        args.insert(0, next_arg)
+            if name == 'mel':
+                action = MelAction(n=name, s=args.pop(0))
 
-                else:
-                    name = arg[1]
-                    if len(arg) > 2:
-                        if renderer[name].num_params:
-                            args.insert(0, arg[2:])
-                        else:
-                            args.insert(0, '-' + arg[2:])
+            elif name in _callback_mapping:
 
+                source = args.pop(0)
+                if source.startswith('mel:'):
+                    source = source[4:].strip()
+                elif source.startswith('python:'):
+                    source = 'python({})'.format(escape_mel(source[7:].strip()))
+
+                action = MelAction(n=name, s='setAttr -type "string" defaultRenderGlobals.{} {}'.format(
+                    _callback_mapping[name],
+                    escape_mel(source),
+                ))
+
+            else:
+                renderer = renderer or new_renderer()
                 action = renderer[name]
-            
+
             run_action(action)
             continue
 
