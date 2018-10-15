@@ -7,7 +7,8 @@ from maya import cmds, mel
 
 from sgfs.ui import product_select
 from sgpublish.exporter.ui.publish.generic import PublishSafetyError
-from uitools.qt import Qt, QtCore, QtGui
+from uitools.qt import Q
+
 import sgfs.ui.scene_name.widget as scene_name
 import sgpublish.exporter.ui.publish.maya
 import sgpublish.exporter.ui.tabwidget
@@ -17,7 +18,7 @@ import sgpublish.uiutils
 from .exporter import Exporter, cache_name_from_cache_set
 
 
-class GroupCheckBox(QtGui.QCheckBox):
+class GroupCheckBox(Q.CheckBox):
     
     def __init__(self, group):
         super(GroupCheckBox, self).__init__()
@@ -30,7 +31,7 @@ class GroupCheckBox(QtGui.QCheckBox):
             child._enabled_checkbox.setChecked(state)
 
 
-class GroupItem(QtGui.QTreeWidgetItem):
+class GroupItem(Q.TreeWidgetItem):
 
     def __init__(self, name):
         super(GroupItem, self).__init__([name or '<scene>'])
@@ -54,7 +55,7 @@ class GroupItem(QtGui.QTreeWidgetItem):
         self._enabled_checkbox.setChecked(new_state)
     
     
-class SetItem(QtGui.QTreeWidgetItem):
+class SetItem(Q.TreeWidgetItem):
     
     def __init__(self, name, path):
         super(SetItem, self).__init__([name])
@@ -65,10 +66,10 @@ class SetItem(QtGui.QTreeWidgetItem):
         self._setup_ui()
     
     def _setup_ui(self):
-        self._enabled_checkbox = QtGui.QCheckBox()
+        self._enabled_checkbox = Q.CheckBox()
         self._enabled_checkbox.setChecked(True)
         self._enabled_checkbox.stateChanged.connect(self._on_enabled_change)
-        self._cache_name_field = QtGui.QLineEdit(self._cache_name)
+        self._cache_name_field = Q.LineEdit(self._cache_name)
         self._cache_name_field.textChanged.connect(self._on_name_change)
         self._on_enabled_change()
     
@@ -87,7 +88,7 @@ class SetItem(QtGui.QTreeWidgetItem):
         
                 
 
-class Dialog(QtGui.QDialog):
+class Dialog(Q.Widgets.Dialog):
 
     def __init__(self):
         super(Dialog, self).__init__()
@@ -104,51 +105,51 @@ class Dialog(QtGui.QDialog):
     def _init_ui(self):
         self.setWindowTitle('Alembic Cache Export')
         self.setMinimumWidth(600)
-        self.setLayout(QtGui.QVBoxLayout())
+        self.setLayout(Q.VBoxLayout())
         
-        pattern_layout = QtGui.QHBoxLayout()
+        pattern_layout = Q.HBoxLayout()
         self.layout().addLayout(pattern_layout)
-        pattern_layout.addWidget(QtGui.QLabel("Set Pattern:"))
-        self._pattern_field = field = QtGui.QLineEdit('__geoCache__')
+        pattern_layout.addWidget(Q.Label("Set Pattern:"))
+        self._pattern_field = field = Q.LineEdit('__geoCache__')
         field.returnPressed.connect(self._reload)
         pattern_layout.addWidget(field)
-        self._reload_button = button = QtGui.QPushButton('Reload')
+        self._reload_button = button = Q.PushButton('Reload')
         button.clicked.connect(self._reload)
         pattern_layout.addWidget(button)
         
-        tree = self._sets_tree = QtGui.QTreeWidget()
-        tree.setFrameShadow(QtGui.QFrame.Plain)
+        tree = self._sets_tree = Q.TreeWidget()
+        tree.setFrameShadow(Q.Frame.Plain)
         tree.setColumnCount(3)
         tree.setHeaderLabels(['Geometry', '', 'Export Name'])
         self.layout().addWidget(tree)
-        tree.viewport().setBackgroundRole(QtGui.QPalette.Window)
+        tree.viewport().setBackgroundRole(Q.Palette.Window)
         
         self._reload()
         
         '''
-        options_box = QtGui.QGroupBox('Options')
+        options_box = Q.GroupBox('Options')
         self.layout().addWidget(options_box)
-        options_box.setLayout(QtGui.QVBoxLayout())
+        options_box.setLayout(Q.VBoxLayout())
         '''
         version = int(cmds.about(version=True).split()[0])
-        layout = QtGui.QHBoxLayout()
+        layout = Q.HBoxLayout()
         #options_box.layout().addLayout(layout)
-        label = QtGui.QLabel("Store Points In:")
+        label = Q.Label("Store Points In:")
         label.setEnabled(version >= 2013)
         layout.addWidget(label)
-        group = QtGui.QButtonGroup()
-        self._local_radio = QtGui.QRadioButton('Local Space')
+        group = Q.ButtonGroup()
+        self._local_radio = Q.RadioButton('Local Space')
         self._local_radio.setEnabled(version >= 2013)
         group.addButton(self._local_radio)
         layout.addWidget(self._local_radio)
-        self._world_radio = QtGui.QRadioButton('World Space')
+        self._world_radio = Q.RadioButton('World Space')
         self._world_radio.setEnabled(version >= 2013)
         group.addButton(self._world_radio)
         layout.addWidget(self._world_radio)
         layout.addStretch()
 
         if version < 2013:
-            label = QtGui.QLabel('(only in 2013+)')
+            label = Q.Label('(only in 2013+)')
             label.setEnabled(False)
             layout.addWidget(label)
             self._local_radio.setChecked(True)
@@ -177,15 +178,15 @@ class Dialog(QtGui.QDialog):
         })
         self._exporter_widget.addTab(tab, "Export to Work Area")
         
-        button_layout = QtGui.QHBoxLayout()
+        button_layout = Q.HBoxLayout()
         self.layout().addLayout(button_layout)
         
-        button = self.cancel_button = QtGui.QPushButton("Cancel")
+        button = self.cancel_button = Q.PushButton("Cancel")
         button.clicked.connect(self._on_cancel_button)
         button_layout.addWidget(button)
         button_layout.addStretch()
         
-        button = self._local_button = QtGui.QPushButton("Process Locally")
+        button = self._local_button = Q.PushButton("Process Locally")
         button.clicked.connect(self._on_process_button)
         button_layout.addWidget(button)
 
@@ -250,7 +251,7 @@ class Dialog(QtGui.QDialog):
         
         to_cache = list(self._iter_to_cache())
         if not to_cache:
-            QtGui.QMessageBox.critical(self, "Error", "Nothing selected to export.")
+            Q.MessageBox.critical(self, "Error", "Nothing selected to export.")
             return
 
         try:
@@ -284,20 +285,20 @@ def run():
     # Be cautious if the scene was never saved
     filename = cmds.file(query=True, sceneName=True)
     if not filename:
-        res = QtGui.QMessageBox.warning(None, 'Unsaved Scene', 'This scene has not beed saved. Continue anyways?',
-            QtGui.QMessageBox.Yes | QtGui.QMessageBox.No,
-            QtGui.QMessageBox.No
+        res = Q.MessageBox.warning(None, 'Unsaved Scene', 'This scene has not beed saved. Continue anyways?',
+            Q.MessageBox.Yes | Q.MessageBox.No,
+            Q.MessageBox.No
         )
-        if res & QtGui.QMessageBox.No:
+        if res & Q.MessageBox.No:
             return
     
     workspace = cmds.workspace(q=True, rootDirectory=True)
     if filename and not filename.startswith(workspace):
-        res = QtGui.QMessageBox.warning(None, 'Mismatched Workspace', 'This scene is not from the current workspace. Continue anyways?',
-            QtGui.QMessageBox.Yes | QtGui.QMessageBox.No,
-            QtGui.QMessageBox.No
+        res = Q.MessageBox.warning(None, 'Mismatched Workspace', 'This scene is not from the current workspace. Continue anyways?',
+            Q.MessageBox.Yes | Q.MessageBox.No,
+            Q.MessageBox.No
         )
-        if res & QtGui.QMessageBox.No:
+        if res & Q.MessageBox.No:
             return
 
     dialog = Dialog()    
