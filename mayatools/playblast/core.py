@@ -7,16 +7,23 @@ from maya import cmds
 from .. import context
 
 
-settings = {
+defaults = {
     'global_attrs': {
-        'defaultRenderGlobals.imageFormat': 8, # JPEG.
         # 'defaultResolution.deviceAspectRatio': 1280.0 / 720,
-        # 'defaultResolution.pixelAspect': 1.0,
         # 'defaultResolution.dotsPerInch': 72,
+        # 'defaultResolution.pixelAspect': 1.0,
         # 'defaultResolution.pixelDensityUnits': 0,
+        'defaultRenderGlobals.imageFormat': 8, # JPEG.
+        # 'hardwareRenderingGlobals.motionBlurEnable': True,
+        'hardwareRenderingGlobals.motionBlurSampleCount': 32,
+        'hardwareRenderingGlobals.multiSampleEnable': True,
+        'hardwareRenderingGlobals.ssaoEnable': True,
+        'hardwareRenderingGlobals.ssaoSamples': 16,
     },
-    'camera': {
-        'displayFilmGate': 0,
+    'camera_edit': {
+        'displayFilmGate': 1,
+        'displayGateMask': 1,
+        'displayGateMaskOpacity': 0.85,
         'displayResolution': 1,
         'overscan': 1,
     },
@@ -61,8 +68,16 @@ def playblast(**kwargs):
     kwargs.setdefault('forceOverwrite', True)
     kwargs.setdefault('percent', 100)
     
-    with context.attrs(settings['global_attrs']):
-        with context.command(cmds.camera, camera, edit=True, **(settings['camera'] if camera else {})):
+    global_attrs = dict(kwargs.pop('global_attrs', {}))
+    for k ,v in defaults['global_attrs'].items():
+        global_attrs.setdefault(k, v)
+
+    camera_edit = dict(kwargs.pop('camera_edit', {}))
+    for k, v in defaults['camera_edit'].items():
+        camera_edit.setdefault(k, v)
+
+    with context.attrs(global_attrs):
+        with context.command(cmds.camera, camera, edit=True, **(camera_edit if camera else {})):
             return cmds.playblast(**kwargs)
 
 
