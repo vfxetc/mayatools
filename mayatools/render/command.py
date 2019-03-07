@@ -1,6 +1,8 @@
 from __future__ import print_function
 
 import argparse
+import os
+import traceback
 
 try:
     from maya import cmds
@@ -24,30 +26,51 @@ _callback_mapping = {
     'postFrame': 'postRenderMel',
 }
 
-def main(argv=None):
+def main(argv=None, open_=True, exit_=True):
+
+    if not exit_:
+        return _main(argv, open_) or 0
+
+    # We exit really agressively, because the mayapy shutdown is not clean.
+    try:
+        code = _main(argv, open_) or 0
+    except SystemExit as e:
+        os._exit(e.code or 0)
+    except:
+        traceback.print_exc()
+        os._exit(1)
+    else:
+        os._exit(code)
+
+
+def _main(argv, open_):
 
     parser = argparse.ArgumentParser(add_help=None)
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('-n', '--dry-run', action='store_true')
     opts, args = parser.parse_known_args(argv)
 
-    scene_path = args.pop()
 
     opts.verbose = opts.verbose or opts.dry_run
 
-    if not opts.dry_run:
 
-        if not cmds:
-            print("Can't run without --dry-run outside of Maya.")
-            exit(2)
+    if open_:
 
-        # Don't want to re-initialize.
-        try:
-            cmds.file
-        except AttributeError:
-            maya.standalone.initialize()
+        scene_path = args.pop()
 
-        cmds.file(scene_path, open=True, force=True)
+        if not opts.dry_run:
+
+            if not cmds:
+                print("Can't run without --dry-run outside of Maya.")
+                return 2
+
+            # Don't want to re-initialize.
+            try:
+                cmds.file
+            except AttributeError:
+                maya.standalone.initialize()
+
+            cmds.file(scene_path, open=True, force=True)
 
     renderer = None
 
@@ -79,7 +102,7 @@ def main(argv=None):
                 renderer.print_help()
             else:
                 parser.print_help()
-            exit()
+            return
 
         if arg in ('-r', '--renderer'):
             name = args.pop(0)
