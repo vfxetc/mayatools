@@ -7,6 +7,9 @@ import re
 import xml.etree.ElementTree as etree
 from collections import OrderedDict as odict
 
+from metatools.imports import load_entry_point
+
+
 try:
     from maya import mel, cmds
 except ImportError:
@@ -99,6 +102,26 @@ class MelAction(Action):
     def __call__(self, *args):
         from maya import mel
         mel.eval(self.format(*args))
+
+
+class PythonAction(Action):
+
+    def format(self):
+        return self.source
+
+    def __call__(self):
+        locals_ = {}
+        eval(self.source, locals_)
+
+
+class PythonEntryPointAction(Action):
+
+    def format(self):
+        return self.source
+
+    def __call__(self):
+        func = load_entry_point(self.source)
+        func()
 
 
 class AttrAction(Action):

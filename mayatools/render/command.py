@@ -8,7 +8,7 @@ try:
 except ImportError:
     cmds = None
 
-from .renderer import Renderer, MelAction
+from .renderer import Renderer, MelAction, PythonAction, PythonEntryPointAction
 
 
 def escape_mel(s):
@@ -29,7 +29,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(add_help=None)
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('-n', '--dry-run', action='store_true')
-    opts, args = parser.parse_known_args()
+    opts, args = parser.parse_known_args(argv)
 
     scene_path = args.pop()
 
@@ -104,6 +104,12 @@ def main(argv=None):
 
             if name == 'mel':
                 action = MelAction(n=name, s=args.pop(0))
+
+            elif name == 'python':
+                action = PythonAction(n=name, s=args.pop(0))
+
+            elif name == 'pyfunc':
+                action = PythonEntryPointAction(n=name, s=args.pop(0))
 
             elif name in _callback_mapping:
 
