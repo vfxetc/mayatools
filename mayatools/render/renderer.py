@@ -7,7 +7,7 @@ import re
 import xml.etree.ElementTree as etree
 from collections import OrderedDict as odict
 
-from metatools.imports import load_entry_point
+from metatools.imports.entry_points import load_entry_point, EntryPointMalformed
 
 
 try:
@@ -110,6 +110,9 @@ class PythonAction(Action):
         return self.source
 
     def __call__(self):
+
+        source = self.source.strip()
+
         locals_ = {}
         eval(self.source, locals_)
 
@@ -120,8 +123,9 @@ class PythonEntryPointAction(Action):
         return self.source
 
     def __call__(self):
-        func = load_entry_point(self.source)
-        func()
+        
+        func, args, kwargs = load_entry_point(self.source.strip(), with_args=True)
+        func(*args, **kwargs)
 
 
 class AttrAction(Action):

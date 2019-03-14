@@ -131,7 +131,7 @@ def _main(argv, open_):
             elif name == 'python':
                 action = PythonAction(n=name, s=args.pop(0))
 
-            elif name == 'pyfunc':
+            elif name in ('pyfunc', 'pycall'):
                 action = PythonEntryPointAction(n=name, s=args.pop(0))
 
             elif name in _callback_mapping:
